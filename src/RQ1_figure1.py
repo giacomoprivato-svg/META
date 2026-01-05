@@ -17,10 +17,16 @@ from scipy.spatial.distance import pdist
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 from matplotlib.gridspec import GridSpec
+from matplotlib.colors import to_rgb
+
 
 # -----------------------
 # Helpers
 # -----------------------
+
+# Fixed colors for SUDs (used in Panel B legend)
+SUD_COLORS = sns.color_palette("tab10", 10)  # enough for up to 10 SUDs
+
 def ensure_symmetric_cmap(v):
     vmax = np.nanmax(np.abs(v))
     return (-vmax, vmax)
@@ -46,52 +52,121 @@ def arc_between(ax, left_y, right_y, left_x, right_x, linewidth=1.5, color='C0',
     patch = PathPatch(path, facecolor='none', edgecolor=color, lw=linewidth, alpha=alpha)
     ax.add_patch(patch)
 
-def bipartite_arc_panel(ax, mat, left_order, right_order, psy_names, sud_names, topK=12, cluster_colors_map=None):
+def bipartite_lollipop_panel(ax, mat, left_order, right_order,
+                             psy_names, sud_names,
+                             cluster_colors_map,
+                             top_fraction=0.2,
+                             max_circle_size=300):
+    """
+    Horizontal lollipop chart for PSY → SUD top links.
+    - No vertical disalignment: every PSY row stays aligned with its label.
+    - Circle size encodes strength.
+    - Colors from cluster mapping (same as Panel C).
+    """
     ax.clear()
+    nL, nR = len(left_order), len(right_order)
+    left_order = list(left_order)
+    right_order = list(right_order)
+
+    # --- Flatten all links and select top fraction ---
     vals = mat.flatten()
-    idx_sorted = np.argsort(-vals)
-    chosen = idx_sorted[:topK]
-    pairs = [(int(idx // mat.shape[1]), int(idx % mat.shape[1])) for idx in chosen]
+    n_top = max(1, int(len(vals) * top_fraction))
+    top_inds = np.argsort(-vals)[:n_top]
+    top_pairs = [(int(idx // nR), int(idx % nR)) for idx in top_inds]
 
-    nL = len(left_order)
-    nR = len(right_order)
-    left_pos_map = {i: idx for idx, i in enumerate(left_order)}
-    right_pos_map = {i: idx for idx, i in enumerate(right_order)}
+    if len(top_pairs) == 0:
+        ax.text(0.5, 0.5, "No top links to display", ha='center', va='center', fontsize=12)
+        ax.set_axis_off()
+        return
 
-    max_val = np.nanmax(mat)
+    # --- Normalize strengths for circle sizes ---
+    top_vals = np.array([mat[i,j] for i,j in top_pairs])
+    min_val, max_val = top_vals.min(), top_vals.max()
+    norm_vals = (top_vals - min_val) / (max_val - min_val + 1e-8)
 
-    for i,j in pairs:
-        yi = left_pos_map[i] / max(1, nL-1)
-        yj = right_pos_map[j] / max(1, nR-1)
-        strength = mat[i,j]
-        lw = max(0.5, min(4.0, (strength / max_val) * 4.0))
-        alpha = 0.3 + 0.7 * (strength/max_val)**2  # enhanced contrast
-        color = cluster_colors_map.get(i, 'gray') if cluster_colors_map is not None else 'C0'
-        arc_between(ax, yi, yj, left_x=0.05, right_x=0.95, linewidth=lw, color=color, alpha=alpha)
+    # --- Draw horizontal lollipops ---
+    for idx, (i,j) in enumerate(top_pairs):
+        yi = left_order.index(i) / max(1, nL-1)   # exactly aligned
+        xi = right_order.index(j) / max(1, nR-1)
 
-    for idx, i in enumerate(left_order):
-        y = idx / max(1, nL-1)
-        ax.text(0.0, y, psy_names[i], va='center', ha='left', fontsize=8)
-    for idx, i in enumerate(right_order):
-        y = idx / max(1, nR-1)
-        ax.text(1.0, y, sud_names[i], va='center', ha='right', fontsize=8)
+        # Circle size proportional to strength
+        size = 50 + max_circle_size * norm_vals[idx]
 
-    ax.axis('off')
+        # Color from cluster mapping
+        color = cluster_colors_map.get(i, 'gray')
+
+        # Draw horizontal line and circle
+        ax.plot([0, xi], [yi, yi], lw=1, color=color, alpha=0.6)
+        ax.scatter(xi, yi, s=size, color=color, edgecolor='k', zorder=3)
+
+    # --- Y-axis labels ---
+    ax.set_yticks([idx / max(1, nL-1) for idx in range(nL)])
+    ax.set_yticklabels([psy_names[i] for i in left_order], fontsize=9)
+
+    # --- X-axis labels ---
+    ax.set_xticks([idx / max(1, nR-1) for idx in range(nR)])
+    ax.set_xticklabels([sud_names[i] for i in right_order], rotation=45, ha='right', fontsize=9)
+
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xlabel('SUD', fontsize=10)
+    ax.set_title(f'Top {int(top_fraction*100)}% PSY–SUD links', fontsize=10)
+
 
 def forest_panel(ax, mat, psy_names, sud_names):
     means = np.nanmean(mat, axis=1)
     order = np.argsort(-means)
     y = np.arange(mat.shape[0])
-    mat_ord = mat[order,:]
-    ax.hlines(y=y, xmin=np.nanmin(mat_ord, axis=1), xmax=np.nanmax(mat_ord, axis=1), color='lightgray')
-    for k in range(mat_ord.shape[1]):
-        ax.scatter(mat_ord[:,k], y, s=40, alpha=0.9)
-    ax.scatter(np.nanmean(mat_ord, axis=1), y, s=60, c='k', marker='D')
+    mat_ord = mat[order, :]
+
+    # Range bars
+    ax.hlines(
+        y=y,
+        xmin=np.nanmin(mat_ord, axis=1),
+        xmax=np.nanmax(mat_ord, axis=1),
+        color='lightgray',
+        linewidth=2
+    )
+
+    # Scatter dots (one color per SUD)
+    handles = []
+    for k, sud in enumerate(sud_names):
+        sc = ax.scatter(
+            mat_ord[:, k],
+            y,
+            s=40,
+            alpha=0.9,
+            color=SUD_COLORS[k],
+            label=sud
+        )
+        handles.append(sc)
+
+    # Mean marker
+    ax.scatter(
+        np.nanmean(mat_ord, axis=1),
+        y,
+        s=60,
+        c='k',
+        marker='D',
+        label='Mean'
+    )
+
+    # Axis formatting
     ax.set_yticks(y)
     ax.set_yticklabels(np.array(psy_names)[order])
     ax.invert_yaxis()
     ax.set_xlabel('Similarity (Z; combined)')
+
+    # ---- ADD LEGEND HERE ----
+    ax.legend(
+        title='SUD',
+        frameon=False,
+        fontsize='small',
+        loc='upper left'
+    )
+
     return order
+
 
 # -----------------------
 # Main function
@@ -113,6 +188,9 @@ def make_figure(group_dirs, outpath, topK=12):
     Zc_combined = pd.concat(Zc_list, axis=0)
     mat = Zc_combined.to_numpy(dtype=float)
     psy_names = list(Zc_combined.index)
+    # Replace 'Schizotypic' with 'Schizotypy' everywhere
+    psy_names = ['Schizotypy' if name.lower() == 'schizotypic' else name for name in psy_names]
+
     sud_names = list(Zc_combined.columns)
     mat_z = (mat - np.nanmean(mat.flatten())) / np.nanstd(mat.flatten())
 
@@ -146,11 +224,14 @@ def make_figure(group_dirs, outpath, topK=12):
     }
 
     # Map PSY disorders to cluster colors
+   # Map PSY disorders to cluster colors (correct 'Schizotypic' -> 'Schizotypy')
     psy_cluster_map = {}
     for cluster_name, disorders in manual_clusters.items():
         for d in disorders:
-            if d in psy_names:
-                psy_cluster_map[d] = cluster_colors[cluster_name]
+            key = 'Schizotypy' if d.lower() == 'schizotypic' else d
+            if key in psy_names:
+                psy_cluster_map[key] = cluster_colors[cluster_name]
+
 
     # --- Figure ---
     plt.close('all')
@@ -198,9 +279,17 @@ def make_figure(group_dirs, outpath, topK=12):
 
     # Panel D: Bipartite arcs
     axD = fig.add_subplot(gs[3,0:2])
-    bipartite_arc_panel(axD, mat_z, psy_order_for_arcs, col_order,
-                        psy_names, sud_names, topK=topK,
-                        cluster_colors_map={i: psy_cluster_map.get(psy_names[i],'gray') for i in range(len(psy_names))})
+    bipartite_lollipop_panel(
+        axD, mat_z, psy_order_for_arcs, col_order,
+        psy_names, sud_names,
+        cluster_colors_map={i: psy_cluster_map.get(psy_names[i], 'gray') for i in range(len(psy_names))},
+        top_fraction=0.2,
+        max_circle_size=300,
+    )
+
+
+
+
     axD.set_title(f'D. Top {topK} PSY–SUD links')
 
     # Panel E: Cortex vs Subcortex

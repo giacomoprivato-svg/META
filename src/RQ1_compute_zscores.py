@@ -10,6 +10,7 @@ import scipy.io as sio
 from scipy.spatial.distance import cdist
 from scipy.stats import rankdata, norm
 from tqdm import tqdm
+import h5py
 
 # ---------------------------
 # Determinism
@@ -235,12 +236,13 @@ for group_label, psy_file_name in groups:
         print(f"Loaded cortex spins from {spinfile} (nperm={spins_ctx.shape[0]})")
     else:
         # If not present, try to construct from centroids (like MATLAB did)
-        centsfile = os.path.join(repo_dir, 'centroids_ctx_68.mat')
+        centsfile = os.path.join(data_dir, 'centroids_ctx_68.mat')
         if os.path.exists(centsfile):
-            C = sio.loadmat(centsfile)
-            # Expect centroids_lh & centroids_rh
-            LH = C.get('centroids_lh', None)
-            RH = C.get('centroids_rh', None)
+            with h5py.File(centsfile, 'r') as f:
+            # MATLAB stores datasets as HDF5 datasets
+                LH = np.array(f['centroids_lh']).T  # transpose if needed
+                RH = np.array(f['centroids_rh']).T
+
             if LH is None or RH is None:
                 raise KeyError("centroids_ctx_68.mat must contain 'centroids_lh' and 'centroids_rh'")
             # normalize (MATLAB used normalization)
@@ -283,6 +285,13 @@ for group_label, psy_file_name in groups:
          'subctx':{m: np.zeros((num_psy,num_sud)) for m in measures} if len(subctx_idx)>0 else {}}
     # Optionally keep p-values if you want to inspect them
     Pvals = {'cortex':{}, 'subctx':{}}
+
+    # ---- NEW: prepare RAW and NULLS containers ----
+    RAW = {'cortex':{m: np.zeros((num_psy,num_sud)) for m in measures[:3]},
+           'subctx':{m: np.zeros((num_psy,num_sud)) for m in measures[:3]} if len(subctx_idx)>0 else {}}
+    NULLS = {'cortex':{m: np.zeros((num_psy,num_sud,nperm)) for m in measures[:3]},
+             'subctx':{m: np.zeros((num_psy,num_sud,nperm)) for m in measures[:3]} if len(subctx_idx)>0 else {}}
+
     print("Starting similarity computations...")
     for i in tqdm(range(num_psy), desc='PSY maps'):
         psy_vec = X_psy[:,i]
@@ -290,12 +299,14 @@ for group_label, psy_file_name in groups:
             sud_vec = X_sud[:,j]
             # Cortex
             obs_c, nulls_c = vectorized_similarity(psy_vec[cortex_idx], sud_vec[cortex_idx], spins_ctx)
-            # For each of the three measures compute permutation p and z (one-sided greater)
             for k,m in enumerate(['spearman','cosine','euclidean']):
                 p_c, z_c = permutation_p_to_z(obs_c[k], nulls_c[:,k], tail='greater')
                 Z['cortex'][m][i,j] = z_c
                 Pvals['cortex'].setdefault(m, np.full((num_psy,num_sud), np.nan))[i,j] = p_c
-            # combined: Stouffer-like: sum z / sqrt(k)
+                # ---- NEW: store RAW and NULLS ----
+                RAW['cortex'][m][i,j] = obs_c[k]
+                NULLS['cortex'][m][i,j,:] = nulls_c[:,k]
+
             combined_c = (Z['cortex']['spearman'][i,j] + Z['cortex']['cosine'][i,j] + Z['cortex']['euclidean'][i,j]) / np.sqrt(3)
             Z['cortex']['combined'][i,j] = combined_c
 
@@ -306,6 +317,9 @@ for group_label, psy_file_name in groups:
                     p_s, z_s = permutation_p_to_z(obs_s[k], nulls_s[:,k], tail='greater')
                     Z['subctx'][m][i,j] = z_s
                     Pvals['subctx'].setdefault(m, np.full((num_psy,num_sud), np.nan))[i,j] = p_s
+                    # ---- NEW: store RAW and NULLS ----
+                    RAW['subctx'][m][i,j] = obs_s[k]
+                    NULLS['subctx'][m][i,j,:] = nulls_s[:,k]
                 combined_s = (Z['subctx']['spearman'][i,j] + Z['subctx']['cosine'][i,j] + Z['subctx']['euclidean'][i,j]) / np.sqrt(3)
                 Z['subctx']['combined'][i,j] = combined_s
 
@@ -325,6 +339,22 @@ for group_label, psy_file_name in groups:
         if len(subctx_idx)>0:
             df_ps = pd.DataFrame(Pvals['subctx'][m], index=psy_names, columns=sud_names)
             df_ps.to_csv(os.path.join(outdir,f'P_subctx_{m}.csv'))
+
+    # ---- NEW: save RAW and NULLS as CSVs ----
+    for m in ['spearman','cosine','euclidean']:
+        # RAW
+        df_raw_c = pd.DataFrame(RAW['cortex'][m], index=psy_names, columns=sud_names)
+        df_raw_c.to_csv(os.path.join(outdir,f'RAW_cortex_{m}.csv'))
+        if len(subctx_idx)>0:
+            df_raw_s = pd.DataFrame(RAW['subctx'][m], index=psy_names, columns=sud_names)
+            df_raw_s.to_csv(os.path.join(outdir,f'RAW_subctx_{m}.csv'))
+        # NULLS: save each (n_psy x n_sud x nperm) as separate CSV per SUD
+        for j, sname in enumerate(sud_names):
+            df_null_c = pd.DataFrame(NULLS['cortex'][m][:,j,:], index=psy_names)
+            df_null_c.to_csv(os.path.join(outdir,f'NULLS_cortex_{m}_{sname}.csv'), index=True)
+            if len(subctx_idx)>0:
+                df_null_s = pd.DataFrame(NULLS['subctx'][m][:,j,:], index=psy_names)
+                df_null_s.to_csv(os.path.join(outdir,f'NULLS_subctx_{m}_{sname}.csv'), index=True)
 
     # --- Ranking ---
     Zc = Z['cortex']['combined']

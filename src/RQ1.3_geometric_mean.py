@@ -9,7 +9,7 @@ from enigmatoolbox.plotting import plot_cortical, plot_subcortical
 # CONFIG (WINDOWS)
 # ======================
 BASE = r"C:\Users\giaco\Desktop\Git_META\META\data\raw"
-OUTDIR = r"C:\Users\giaco\Desktop\Git_META\META\results\RQ1_3_overlap"
+OUTDIR = r"C:\Users\giaco\Desktop\Git_META\META\results\RQ1_3_GM"
 os.makedirs(OUTDIR, exist_ok=True)
 
 PATH_SUD = os.path.join(BASE, "SUD.xlsx")
@@ -97,53 +97,54 @@ def pad_subcortex(data14):
     return padded
 
 # ======================
-# OVERLAP CORE (TOP-K VERSION)
+# OVERLAP CORE (TOP-K + GEOMETRIC MEAN)
 # ======================
 def compute_overlap_negative_tail_topk(X, top_pct, region_labels, separator="|"):
-    """
-    Compute overlap using top-k most negative values for each disorder.
-    """
     X = X.apply(pd.to_numeric, errors="coerce")
     n_regions, n_disorders = X.shape
-    k = max(1, int(np.ceil(top_pct * n_regions)))  # at least 1 region per disorder
+    k = max(1, int(np.ceil(top_pct * n_regions)))
 
     bins = np.zeros((n_regions, n_disorders), dtype=int)
 
     for j, col in enumerate(X.columns):
         vals = X[col].to_numpy(float)
-        ok_idx = np.where(np.isfinite(vals))[0]
-        if len(ok_idx) == 0:
+        ok = np.where(np.isfinite(vals))[0]
+        if len(ok) == 0:
             continue
+        topk = ok[np.argsort(vals[ok])][:k]
+        bins[topk, j] = 1
 
-        # get indices of k most negative values
-        sorted_idx = ok_idx[np.argsort(vals[ok_idx])]  # ascending order (more negative first)
-        topk_idx = sorted_idx[:k]
-        bins[topk_idx, j] = 1
+    sud_idx = [i for i, c in enumerate(X.columns) if c.startswith("SUD_")]
+    psy_idx = [i for i, c in enumerate(X.columns) if not c.startswith("SUD_")]
 
-    overlap_count = bins.sum(axis=1)
-    overlap_frac = overlap_count / n_disorders
+    n_sud = len(sud_idx)
+    n_psy = len(psy_idx)
+
+    sud_frac = bins[:, sud_idx].sum(axis=1) / n_sud if n_sud > 0 else 0
+    psy_frac = bins[:, psy_idx].sum(axis=1) / n_psy if n_psy > 0 else 0
+
+    overlap_gm = np.sqrt(sud_frac * psy_frac)
 
     overlap_disorders = []
     for i in range(n_regions):
         idx = np.where(bins[i] == 1)[0]
-        if len(idx) == 0:
-            overlap_disorders.append("")
-        else:
-            overlap_disorders.append(separator.join(X.columns[idx]))
+        overlap_disorders.append(separator.join(X.columns[idx]) if len(idx) else "")
 
     out = pd.DataFrame({
         "region": region_labels,
-        "overlap_count": overlap_count,
-        "overlap_frac": overlap_frac,
+        "overlap_GM": overlap_gm,
+        "psy_frac": psy_frac,
+        "sud_frac": sud_frac,
         "overlap_disorders": overlap_disorders,
     })
 
     meta = dict(
         n_regions=n_regions,
         n_disorders=n_disorders,
-        disorders=list(X.columns),
+        n_psy=n_psy,
+        n_sud=n_sud,
         top_pct=top_pct,
-        tail="negative",
+        overlap_metric="geometric_mean",
     )
 
     return out, meta
@@ -158,7 +159,7 @@ def save_outputs(tag, out_df, meta):
     )
 
 def plot_overlap_ctx(tag, out_df, top_pct):
-    vals = out_df["overlap_frac"].to_numpy(float)
+    vals = out_df["overlap_GM"].to_numpy(float)
     CT = parcel_to_surface(vals, "aparc_fsa5")
     plot_cortical(
         array_name=CT,
@@ -170,7 +171,7 @@ def plot_overlap_ctx(tag, out_df, top_pct):
     )
 
 def plot_overlap_sctx(tag, out_df, top_pct):
-    vals14 = out_df["overlap_frac"].to_numpy(float)
+    vals14 = out_df["overlap_GM"].to_numpy(float)
     vals16 = pad_subcortex(vals14)
     plot_subcortical(
         vals16,
@@ -253,14 +254,12 @@ def build_cluster_sctx(cluster_disorders):
 # ======================
 print(f"Saving outputs to: {OUTDIR}")
 
-# Adults + Adolescents
 X_ad_ctx = build_adults_ctx()
 X_ad_s = build_adults_sctx()
 X_ped_ctx = build_adolescents_ctx()
 X_ped_s = build_adolescents_sctx()
 
 for top_pct in TOP_PCTS:
-    # Adults - all disorders
     out, meta = compute_overlap_negative_tail_topk(X_ad_ctx, top_pct, DKT68)
     save_outputs("ADULTS_ALLDISORDERS_CTX", out, meta)
     plot_overlap_ctx("ADULTS_ALLDISORDERS_CTX", out, top_pct)
@@ -269,7 +268,6 @@ for top_pct in TOP_PCTS:
     save_outputs("ADULTS_ALLDISORDERS_SCTX", out, meta)
     plot_overlap_sctx("ADULTS_ALLDISORDERS_SCTX", out, top_pct)
 
-    # Adolescents - all disorders
     out, meta = compute_overlap_negative_tail_topk(X_ped_ctx, top_pct, DKT68)
     save_outputs("ADOLESCENTS_ALLDISORDERS_CTX", out, meta)
     plot_overlap_ctx("ADOLESCENTS_ALLDISORDERS_CTX", out, top_pct)
@@ -278,7 +276,6 @@ for top_pct in TOP_PCTS:
     save_outputs("ADOLESCENTS_ALLDISORDERS_SCTX", out, meta)
     plot_overlap_sctx("ADOLESCENTS_ALLDISORDERS_SCTX", out, top_pct)
 
-    # Adults - clusters
     for cname, disorders in CLUSTERS.items():
         Xc = build_cluster_ctx(disorders)
         Xs = build_cluster_sctx(disorders)
@@ -291,6 +288,4 @@ for top_pct in TOP_PCTS:
         save_outputs(f"ADULTS_CLUSTER_{cname}_SCTX", out, meta)
         plot_overlap_sctx(f"ADULTS_CLUSTER_{cname}_SCTX", out, top_pct)
 
-print("✅ Done: ALLDISORDERS + clusters (top-k method).")
-
-
+print("✅ Done: overlap = normalized geometric mean (PSY × SUD).")

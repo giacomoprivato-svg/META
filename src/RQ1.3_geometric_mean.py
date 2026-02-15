@@ -13,9 +13,14 @@ OUTDIR = r"C:\Users\giaco\Desktop\Git_META\META\results\RQ1_3_GM"
 os.makedirs(OUTDIR, exist_ok=True)
 
 PATH_SUD = os.path.join(BASE, "SUD.xlsx")
+PATH_SUD_PVAL = os.path.join(BASE, "SUD_pvalue.xlsx")  # <-- aggiunto
+
 PATH_PSY_ADULTS_ALL = os.path.join(BASE, "PSY_adults.xlsx")
+PATH_PSY_ADULTS_PVAL = os.path.join(BASE, "PSY_adults_pvalue.xlsx")
 PATH_PSY_ADO_ALL = os.path.join(BASE, "PSY_adolescents.xlsx")
+PATH_PSY_ADO_PVAL = os.path.join(BASE, "PSY_adolescents_pvalue.xlsx")
 PATH_PSY_ADO_CTX = os.path.join(BASE, "PSY_adolescents_ctx.xlsx")
+PATH_PSY_ADO_CTX_PVAL = os.path.join(BASE, "PSY_adolescents_ctx_pvalue.xlsx")
 
 TOP_PCTS = [0.10, 0.20]
 
@@ -78,6 +83,13 @@ def read_excel_numeric(path):
     df = pd.read_excel(path)
     return df.apply(pd.to_numeric, errors="coerce")
 
+def clean_pvalues(df):
+    """Convert p-values to numeric, handle '<0.0001' strings."""
+    df = df.copy()
+    for c in df.columns:
+        df[c] = pd.to_numeric(df[c].astype(str).str.replace("<", ""), errors="coerce")
+    return df
+
 def split_ctx_sctx(df):
     ctx = df.iloc[CTX_SLICE, :].copy()
     sctx = df.iloc[-SCTX_N:, :].copy()
@@ -97,9 +109,9 @@ def pad_subcortex(data14):
     return padded
 
 # ======================
-# OVERLAP CORE (TOP-K + GEOMETRIC MEAN)
+# OVERLAP CORE (TOP-K + GEOMETRIC MEAN + SIGNIFICANCE)
 # ======================
-def compute_overlap_negative_tail_topk(X, top_pct, region_labels, separator="|"):
+def compute_overlap_negative_tail_topk(X, top_pct, region_labels, pvals=None, separator="|"):
     X = X.apply(pd.to_numeric, errors="coerce")
     n_regions, n_disorders = X.shape
     k = max(1, int(np.ceil(top_pct * n_regions)))
@@ -112,6 +124,10 @@ def compute_overlap_negative_tail_topk(X, top_pct, region_labels, separator="|")
         if len(ok) == 0:
             continue
         topk = ok[np.argsort(vals[ok])][:k]
+        if pvals is not None:
+            p_col = pvals[col].to_numpy(float)
+            sig_idx = np.where(p_col < 0.05)[0]
+            topk = np.intersect1d(topk, sig_idx)
         bins[topk, j] = 1
 
     sud_idx = [i for i, c in enumerate(X.columns) if c.startswith("SUD_")]
@@ -164,7 +180,7 @@ def plot_overlap_ctx(tag, out_df, top_pct):
     plot_cortical(
         array_name=CT,
         surface_name="fsa5",
-        color_range=(0, 1),
+        color_range=(0, 0.6),
         screenshot=True,
         filename=os.path.join(OUTDIR, f"{tag}_cortex_top{int(top_pct*100)}.png"),
         **PLOT_KW_OVERLAP,
@@ -175,7 +191,7 @@ def plot_overlap_sctx(tag, out_df, top_pct):
     vals16 = pad_subcortex(vals14)
     plot_subcortical(
         vals16,
-        color_range=(0, 1),
+        color_range=(0, 0.6),
         screenshot=True,
         filename=os.path.join(OUTDIR, f"{tag}_subcortex_top{int(top_pct*100)}.png"),
         **PLOT_KW_OVERLAP,
@@ -259,20 +275,31 @@ X_ad_s = build_adults_sctx()
 X_ped_ctx = build_adolescents_ctx()
 X_ped_s = build_adolescents_sctx()
 
+# --- read p-values with cleaning ---
+PVAL_adults_sud = ensure_unique_cols(clean_pvalues(read_excel_numeric(PATH_SUD_PVAL)), "SUD_")
+PVAL_adults_psy = ensure_unique_cols(clean_pvalues(read_excel_numeric(PATH_PSY_ADULTS_PVAL)), "PSYad_")
+PVAL_adults = pd.concat([PVAL_adults_sud, PVAL_adults_psy], axis=1)
+
+PVAL_ado_sud = ensure_unique_cols(clean_pvalues(read_excel_numeric(PATH_SUD_PVAL)), "SUD_")
+PVAL_ado_psy = ensure_unique_cols(clean_pvalues(read_excel_numeric(PATH_PSY_ADO_PVAL)), "PSYped_")
+PVAL_ado_ctx = ensure_unique_cols(clean_pvalues(read_excel_numeric(PATH_PSY_ADO_CTX_PVAL)), "PSYpedctx_")
+PVAL_ado = pd.concat([PVAL_ado_sud, PVAL_ado_psy, PVAL_ado_ctx], axis=1)
+
+# --- compute overlaps ---
 for top_pct in TOP_PCTS:
-    out, meta = compute_overlap_negative_tail_topk(X_ad_ctx, top_pct, DKT68)
+    out, meta = compute_overlap_negative_tail_topk(X_ad_ctx, top_pct, DKT68, pvals=PVAL_adults)
     save_outputs("ADULTS_ALLDISORDERS_CTX", out, meta)
     plot_overlap_ctx("ADULTS_ALLDISORDERS_CTX", out, top_pct)
 
-    out, meta = compute_overlap_negative_tail_topk(X_ad_s, top_pct, SV14)
+    out, meta = compute_overlap_negative_tail_topk(X_ad_s, top_pct, SV14, pvals=PVAL_adults)
     save_outputs("ADULTS_ALLDISORDERS_SCTX", out, meta)
     plot_overlap_sctx("ADULTS_ALLDISORDERS_SCTX", out, top_pct)
 
-    out, meta = compute_overlap_negative_tail_topk(X_ped_ctx, top_pct, DKT68)
+    out, meta = compute_overlap_negative_tail_topk(X_ped_ctx, top_pct, DKT68, pvals=PVAL_ado)
     save_outputs("ADOLESCENTS_ALLDISORDERS_CTX", out, meta)
     plot_overlap_ctx("ADOLESCENTS_ALLDISORDERS_CTX", out, top_pct)
 
-    out, meta = compute_overlap_negative_tail_topk(X_ped_s, top_pct, SV14)
+    out, meta = compute_overlap_negative_tail_topk(X_ped_s, top_pct, SV14, pvals=PVAL_ado)
     save_outputs("ADOLESCENTS_ALLDISORDERS_SCTX", out, meta)
     plot_overlap_sctx("ADOLESCENTS_ALLDISORDERS_SCTX", out, top_pct)
 
@@ -280,12 +307,17 @@ for top_pct in TOP_PCTS:
         Xc = build_cluster_ctx(disorders)
         Xs = build_cluster_sctx(disorders)
 
-        out, meta = compute_overlap_negative_tail_topk(Xc, top_pct, DKT68)
+        # --- fix prefissi per p-value cluster ---
+        pvals_cluster_psy = PVAL_adults_psy[[f"PSYad_{d}" for d in disorders]].copy()
+        pvals_cluster_psy.columns = [f"CLUSTER_{d}" for d in disorders]  # <-- allinea col nome dati
+        pvals_cluster = pd.concat([PVAL_adults_sud, pvals_cluster_psy], axis=1)
+
+        out, meta = compute_overlap_negative_tail_topk(Xc, top_pct, DKT68, pvals=pvals_cluster)
         save_outputs(f"ADULTS_CLUSTER_{cname}_CTX", out, meta)
         plot_overlap_ctx(f"ADULTS_CLUSTER_{cname}_CTX", out, top_pct)
 
-        out, meta = compute_overlap_negative_tail_topk(Xs, top_pct, SV14)
+        out, meta = compute_overlap_negative_tail_topk(Xs, top_pct, SV14, pvals=pvals_cluster)
         save_outputs(f"ADULTS_CLUSTER_{cname}_SCTX", out, meta)
         plot_overlap_sctx(f"ADULTS_CLUSTER_{cname}_SCTX", out, top_pct)
 
-print("✅ Done: overlap = normalized geometric mean (PSY × SUD).")
+print("✅ Done: overlap = normalized geometric mean (PSY × SUD) con filtro significatività incluso SUD e valori '<0.0001'.")

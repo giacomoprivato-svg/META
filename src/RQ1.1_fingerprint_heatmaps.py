@@ -23,7 +23,7 @@ OUT_DIR = os.path.join(REPO_DIR, "metric_profiles_RQ1")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 GROUPS = {
-    "Adults": ["adults_all", "adults_ctx"],
+    "Adults": ["adults_all"],
     "Pediatric": ["adolescents_all", "adolescents_ctx"],
 }
 

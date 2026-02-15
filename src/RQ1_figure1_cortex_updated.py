@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 1 generator for PSY × SUD similarity panels (A–E modified)
+Figure 1 generator for PSY × SUD similarity panels (A–D)
 Adults-only cortex data
 EUCLIDEAN similarity version (permutation-calibrated Z-values)
 """
@@ -54,6 +54,11 @@ def make_figure(group_dirs, outpath):
     Z_spearman = pd.concat(Z_spearman_list, axis=0)
     Z_cosine = pd.concat(Z_cosine_list, axis=0)
 
+    # ---- Remove Schizotypy from all analyses ----
+    mask_psy = ~Z_euclid.index.str.contains('Schizotypic|Schizotypy', case=False)
+    Z_euclid = Z_euclid.loc[mask_psy, :]
+    Z_spearman = Z_spearman.loc[mask_psy, :]
+    Z_cosine = Z_cosine.loc[mask_psy, :]
     psy_names = list(Z_euclid.index)
     sud_names = list(Z_euclid.columns)
 
@@ -62,6 +67,7 @@ def make_figure(group_dirs, outpath):
     for gd in group_dirs:
         PVAL_list.append(pd.read_csv(os.path.join(gd, "PVAL_cortex_euclidean.csv"), index_col=0))
     PVAL = pd.concat(PVAL_list, axis=0)
+    PVAL = PVAL.loc[mask_psy, :]
 
     # ---- FDR mask ----
     fdr_mask = np.zeros_like(PVAL, dtype=bool)
@@ -81,35 +87,9 @@ def make_figure(group_dirs, outpath):
     Z_cosine_ord = ord_df(Z_cosine)
     fdr_mask_ord = fdr_mask[row_order][:, col_order]
 
-    # ---- Figure layout ----
-    fig = plt.figure(figsize=(22, 14))
-    gs = GridSpec(2, 2, figure=fig, width_ratios=[1,1], height_ratios=[1,1],
-                  wspace=0.4, hspace=0.4)
-
-    # ---- Panel A: Heatmap of Euclidean Z ----
-    axA = fig.add_subplot(gs[0,0])
-    sns.heatmap(Z_euclid_ord, ax=axA, cmap='RdBu_r', center=0,
-                xticklabels=Z_euclid_ord.columns, yticklabels=Z_euclid_ord.index,
-                cbar_kws={'label': 'Euclidean similarity (Z)'})
-    axA.set_title('A. PSY × SUD Euclidean similarity (Z)')
-    cosmetic_relabel(axA)
-    axA.grid(False)
-
-    # ---- Panel B: Euclidean FDR < 0.05 ----
-    axB = fig.add_subplot(gs[0,1])
-    masked_mat = Z_euclid_ord.copy()
-    masked_mat[~fdr_mask_ord] = np.nan
-    sns.heatmap(masked_mat, ax=axB, cmap='RdBu_r', center=0,
-                xticklabels=Z_euclid_ord.columns, yticklabels=Z_euclid_ord.index,
-                cbar_kws={'label': 'Euclidean similarity (Z) FDR < 0.05'})
-    axB.set_title('B. Euclidean similarity (FDR < 0.05)')
-    cosmetic_relabel(axB)
-    axB.grid(False)
-
-    # ---- Panel C: Cluster fingerprints ----
-    axC = fig.add_subplot(gs[1,0])
+    # ---- Manual clusters for panel C ----
     manual_clusters = {
-        'Psychotic': ['SCZ','BD','CHR','Schizotypic'],
+        'Psychotic': ['SCZ','BD','CHR'],
         'Neurodevelopmental': ['ASD','ADHD'],
         'AN/OCD': ['AN','OCD'],
         'Mood/Anxiety': ['MDD','PTSD']
@@ -121,44 +101,68 @@ def make_figure(group_dirs, outpath):
         'Mood/Anxiety': (0.7, 0.3, 0.7)
     }
 
-    # Compute cluster fingerprints exactly as before
+    # Figure layout: Panel A grande + B,C,D piccoli sotto
+    fig = plt.figure(figsize=(28, 18))
+    # height_ratios = [3, 1] → riga A più alta, riga B,C,D mantiene altezza originale
+    gs = GridSpec(2, 9, figure=fig, height_ratios=[4,2], hspace=0, wspace=0.5)
+
+    # Panel A: heatmap
+    axA = fig.add_subplot(gs[0, :])
+    sns.heatmap(Z_euclid_ord, ax=axA, cmap='RdBu_r', center=0,
+                xticklabels=Z_euclid_ord.columns, yticklabels=Z_euclid_ord.index,
+                cbar_kws={'label': 'Euclidean similarity (Z)',
+                        'orientation': 'horizontal', 'shrink':0.4, 'pad': 0.05})
+    axA.set_title('A. PSY × SUD Euclidean similarity (Z)', fontsize=16)
+    cosmetic_relabel(axA)
+    axA.grid(False)
+
+    # Panel B: Euclidean FDR < 0.05 sotto A, senza colormap
+    axB = fig.add_subplot(gs[1, 0:3])
+    masked_mat = Z_euclid_ord.copy()
+    masked_mat[~fdr_mask_ord] = np.nan
+    sns.heatmap(masked_mat, ax=axB, cmap='RdBu_r', center=0, 
+                xticklabels=Z_euclid_ord.columns, yticklabels=Z_euclid_ord.index,
+                cbar=False)  # niente colorbar
+    axB.set_title('B. Euclidean similarity (FDR < 0.05)', fontsize=16)
+    cosmetic_relabel(axB)
+    axB.grid(False)
+
+    # Panel C: cluster fingerprints
+    axC = fig.add_subplot(gs[1, 3:6])
     for cname, disorders in manual_clusters.items():
         inds = [psy_names.index(d) for d in disorders if d in psy_names]
         if inds:
             prof = np.nanmean(Z_euclid.values[inds, :], axis=0)
             axC.plot(range(len(sud_names)), prof, marker='o', lw=2,
-                     color=cluster_colors[cname], label=cname)
-
+                    color=cluster_colors[cname], label=cname)
     axC.set_xticks(range(len(sud_names)))
     axC.set_xticklabels(sud_names, rotation=45, ha='right')
     axC.set_ylabel('Euclidean similarity (Z)')
     axC.legend(frameon=False)
-    axC.set_title('C. PSY cluster fingerprints')
+    axC.set_title('C. PSY cluster fingerprints', fontsize=16)
     axC.grid(False)
-    cosmetic_relabel(axC)  # optional: relabel ticks
+    cosmetic_relabel(axC)
 
-    # ---- Panel D: Scatter Euclidean vs Spearman / Cosine ----
-    axD = fig.add_subplot(gs[1,1])
+    # Panel D: scatter Euclidean vs Spearman/Cosine con colori neutrali (non quelli dei cluster)
+    axD = fig.add_subplot(gs[1, 6:9])
     mean_euclid = np.nanmean(Z_euclid.values, axis=1)
     mean_spearman = np.nanmean(Z_spearman.values, axis=1)
     mean_cosine = np.nanmean(Z_cosine.values, axis=1)
-
-    axD.scatter(mean_euclid, mean_spearman, label='Spearman Z', color='orange', alpha=0.8)
-    axD.scatter(mean_euclid, mean_cosine, label='Cosine Z', color='purple', alpha=0.8)
+    axD.scatter(mean_euclid, mean_spearman, label='Spearman Z', marker='s', color="#469fdf", alpha=0.8, s=80)
+    axD.scatter(mean_euclid, mean_cosine, label='Cosine Z', marker='^', color="#e07270", alpha=0.8, s=80)
     axD.set_xlabel('Mean Euclidean Z')
     axD.set_ylabel('Mean correlation Z')
-    axD.set_title('D. Euclidean vs Spearman/Cosine Z')
+    axD.set_title('D. Euclidean vs Spearman/Cosine Z', fontsize=16)
     axD.legend(frameon=False)
-    axD.grid(False)
-
-    # Dashed diagonal
     lims = [min(axD.get_xlim()[0], axD.get_ylim()[0]), max(axD.get_xlim()[1], axD.get_ylim()[1])]
     axD.plot(lims, lims, ls='--', color='lightgray')
     axD.set_xlim(lims)
     axD.set_ylim(lims)
+    axD.grid(False)
+
 
     # ---- Save figure ----
-    plt.suptitle('Figure 1 — PSY × SUD similarities (adults cortex)', fontsize=16)
+    plt.subplots_adjust(top=0.94)
     plt.savefig(outpath, dpi=300, bbox_inches='tight')
     print(f"Saved figure to {outpath}")
 
@@ -173,3 +177,4 @@ if __name__ == "__main__":
     ]
 
     make_figure(adults_dirs, "Figure1_Euclidean_final.png")
+

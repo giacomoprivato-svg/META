@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-OUTDIR = r"C:\Users\giaco\Desktop\Git_META\META\results\RQ1_3_overlap"
+OUTDIR = r"C:\Users\giaco\Desktop\Git_META\META\results\RQ1_3_GM"
 OUTPUT_XLSX = os.path.join(OUTDIR, "all_overlap_results.xlsx")
 
 # Mappa per abbreviazioni fogli

@@ -41,7 +41,7 @@ OUT_DIR = os.path.join(REPO_DIR, "RQ1_metric_concordance_tables")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 GROUPS = {
-    "Adults": ["adults_all", "adults_ctx"],
+    "Adults": ["adults_all"],
     "Adolescents": ["adolescents_all", "adolescents_ctx"],
 }
 

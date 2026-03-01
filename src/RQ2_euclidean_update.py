@@ -268,3 +268,189 @@ print("Saved: adults_brain_vs_comorbidity_genetics_extlined.png")
 results_df = pd.DataFrame(results)
 results_df.to_csv("cluster_stats.csv", index=False)
 print("Saved cluster stats to cluster_stats.csv")
+
+# ==========================================================
+#        GLOBAL FIGURE: 6 SUBPLOTS (ADULTS VS ADOLESCENTS)
+# ==========================================================
+
+print("\nGenerating combined 6-panel figure...")
+
+# ----------------------------------------------------------
+# LOAD ADOLESCENT DATA (ALL + CTX)
+# ----------------------------------------------------------
+
+ADOLESCENT_ALL_DIR = os.path.join(BASE_DIR, "ALL_outputs_RQ1", "adolescents_all")
+ADOLESCENT_CTX_DIR = os.path.join(BASE_DIR, "ALL_outputs_RQ1", "adolescents_ctx")
+
+brain_adol_all = pd.read_csv(
+    os.path.join(ADOLESCENT_ALL_DIR, "Z_cortex_euclidean.csv"),
+    index_col=0
+)
+
+brain_adol_ctx = pd.read_csv(
+    os.path.join(ADOLESCENT_CTX_DIR, "Z_cortex_euclidean.csv"),
+    index_col=0
+)
+
+# Unisci adolescenti
+brain_adol = pd.concat([brain_adol_all, brain_adol_ctx])
+
+brain_adol_long = brain_adol.reset_index().melt(
+    id_vars="index",
+    var_name="SUD",
+    value_name="Z_euclidean"
+).rename(columns={"index": "PSY"})
+
+# ----------------------------------------------------------
+# FIX ADHD LABELS (ADHD_ch + ADHD_ado → ADHD)
+# ----------------------------------------------------------
+
+brain_adol_long["PSY"] = brain_adol_long["PSY"].replace({
+    "ADHD_ch": "ADHD",
+    "ADHD_ado": "ADHD"
+})
+
+# ----------------------------------------------------------
+# DATASETS AGE
+# ----------------------------------------------------------
+
+df_age_adol = pd.merge(brain_adol_long, age_long, on=["PSY", "SUD"], how="inner")
+df_age_adol = df_age_adol.dropna(subset=["Z_euclidean", "AgeOnset"])
+df_age_adol["Group"] = "Adolescents"
+
+df_age_adults = df_age.copy()
+df_age_adults["Group"] = "Adults"
+
+df_age_all = pd.concat([df_age_adults, df_age_adol])
+
+# ----------------------------------------------------------
+# DATASETS GENETICS
+# ----------------------------------------------------------
+
+df_gen_adol = pd.merge(brain_adol_long, gen_long, on=["PSY", "SUD"], how="inner")
+df_gen_adol["Group"] = "Adolescents"
+
+df_gen_adults = df_gen.copy()
+df_gen_adults["Group"] = "Adults"
+
+df_gen_all = pd.concat([df_gen_adults, df_gen_adol])
+
+# ==========================================================
+#                CREATE 6-SUBPLOT FIGURE
+# ==========================================================
+
+fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+axes = axes.flatten()
+
+global_results = []
+
+def plot_panel(ax, df, x_col, title, label):
+
+    # Scatter per group
+    for group, color in zip(["Adults", "Adolescents"], ["blue", "orange"]):
+        sub = df[df["Group"] == group]
+        ax.scatter(sub[x_col], sub["Z_euclidean"],
+                   s=60, alpha=0.7,
+                   color=color,
+                   label=group)
+
+    # Global regression
+    x = df[x_col].values
+    y = df["Z_euclidean"].values
+    mask = np.isfinite(x) & np.isfinite(y)
+    x = x[mask]
+    y = y[mask]
+
+    if len(x) >= 2:
+        r, p = pearsonr(x, y)
+
+        rho_s, ci_low, ci_high = bootstrap_spearman(x, y)
+        rho_perm, p_perm = permutation_spearman(x, y)
+        loo = leave_one_out_spearman(x, y)
+
+        m, b = np.polyfit(x, y, 1)
+        xs = np.linspace(x.min(), x.max(), 100)
+        ax.plot(xs, m*xs + b, color="black", linewidth=2)
+
+        ax.text(
+            0.98, 0.02,
+            f"r={r:.2f}, p={p:.3f}",
+            transform=ax.transAxes,
+            ha="right",
+            va="bottom",
+            fontsize=10
+        )
+
+        global_results.append({
+            "Analysis": label,
+            "r_pearson": r,
+            "p_pearson": p,
+            "rho_spearman": rho_s,
+            "spearman_CI_low": ci_low,
+            "spearman_CI_high": ci_high,
+            "p_spearman_perm": p_perm,
+            "LOO_min": np.nanmin(loo),
+            "LOO_max": np.nanmax(loo),
+            "N": len(x)
+        })
+
+    ax.set_title(title)
+    ax.set_xlabel(x_col)
+    ax.set_ylabel("Brain similarity (Z_euclidean)")
+
+
+# ---------------- COMORBIDITY ----------------
+plot_panel(axes[0], df_age_adults, "AgeOnset",
+           "Adults: Comorbidity",
+           "Adults_Comorbidity")
+
+plot_panel(axes[1], df_age_adol, "AgeOnset",
+           "Adolescents: Comorbidity",
+           "Adolescents_Comorbidity")
+
+plot_panel(axes[2], df_age_all, "AgeOnset",
+           "Adults + Adolescents: Comorbidity",
+           "Combined_Comorbidity")
+
+# ---------------- GENETICS ----------------
+plot_panel(axes[3], df_gen_adults, "genetic_corr",
+           "Adults: Genetics",
+           "Adults_Genetics")
+
+plot_panel(axes[4], df_gen_adol, "genetic_corr",
+           "Adolescents: Genetics",
+           "Adolescents_Genetics")
+
+plot_panel(axes[5], df_gen_all, "genetic_corr",
+           "Adults + Adolescents: Genetics",
+           "Combined_Genetics")
+
+# Legend unica
+handles = [
+    plt.Line2D([0], [0], marker='o', color='w',
+               markerfacecolor='blue', markersize=8, label='Adults'),
+    plt.Line2D([0], [0], marker='o', color='w',
+               markerfacecolor='orange', markersize=8, label='Adolescents')
+]
+
+fig.legend(handles=handles,
+           loc='lower center',
+           ncol=2,
+           frameon=True)
+
+plt.tight_layout(rect=[0, 0.05, 1, 1])
+plt.savefig("GLOBAL_6panel_brain_comorbidity_genetics.png", dpi=300)
+plt.close()
+
+print("Saved: GLOBAL_6panel_brain_comorbidity_genetics.png")
+
+# ----------------------------------------------------------
+# SAVE STATS
+# ----------------------------------------------------------
+
+pd.DataFrame(global_results).to_csv(
+    "GLOBAL_6panel_correlation_stats.csv",
+    index=False
+)
+
+print("Saved stats: GLOBAL_6panel_correlation_stats.csv")

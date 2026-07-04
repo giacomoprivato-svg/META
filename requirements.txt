@@ -1,0 +1,12 @@
+numpy
+pandas
+scipy
+scikit-learn
+statsmodels
+matplotlib
+seaborn
+h5py
+tqdm
+adjustText
+brainsmash
+enigmatoolbox

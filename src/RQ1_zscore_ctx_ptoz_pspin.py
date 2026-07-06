@@ -111,23 +111,25 @@ def vectorized_similarity(X, Y, perms):
 
     return obs, nulls
 
+
 def signed_z_and_p_from_null(obs, null):
     null = np.asarray(null).ravel()
     n = null.size
 
+    # p-value a una coda (con smoothing +1)
     p_upper = (np.sum(null >= obs) + 1) / (n + 1)
     p_lower = (np.sum(null <= obs) + 1) / (n + 1)
 
-    if p_upper <= p_lower:
-        p = p_upper
-        sign = 1.0
-    else:
-        p = p_lower
-        sign = -1.0
+    # coda più piccola e relativo segno
+    p_one = min(p_upper, p_lower)
+    sign = 1.0 if p_upper <= p_lower else -1.0
 
-    z = sign * norm.isf(p)
-    return z, p  # <-- ritorna anche il p-value usato
+    # p-value a DUE code: raddoppio della coda minore, cap a 1.0
+    p = min(p_one * 2.0, 1.0)
 
+    # z con segno (identico a prima: modulo del due-code)
+    z = sign * norm.isf(p_one)
+    return z, p  # ora p è a due code
 # ---------------------------
 # Load SUD
 # ---------------------------

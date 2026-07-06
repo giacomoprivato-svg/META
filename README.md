@@ -108,9 +108,20 @@ These must run before the figure/RQ3 scripts below, which read the generated
 Then build the Figure 1 panels:
 
 ```bash
+# Adults — spin-based significance only
 python src/RQ1_figure1_cortex_updated_pspin.py
+
+# Adults — BrainSMASH-based significance only
 python src/RQ1_figure1_cortex_updated_brainsmash.py
+
+# Adults — combined figure: asterisks only where significant under BOTH nulls (main figure)
+python src/RQ1_figure1_cortex_updated_combined.py
+
+# Pediatric — spin-based significance
 python src/RQ1_figure1_cortex_updated_pediatrics.py
+
+# Pediatric — BrainSMASH-based significance
+python src/RQ1_figure1_cortex_updated_pediatrics_brainsmash.py
 ```
 
 ### 3. RQ2 — regional convergence and cortical organization
@@ -130,7 +141,7 @@ python src/RQ2_corr_MPCFC.py              # shared map vs FC and MPC cortical gr
 
 ```bash
 python src/RQ3_ageonset_regression.py     # similarity vs peak age of onset (OLS on disorder-level means)
-python src/RQ3_ageonset_mixedeffect.py     # sensitivity: mixed-effects model on pairwise observations
+python src/RQ3_ageonset_mixedeffect.py    # sensitivity: mixed-effects model on pairwise observations
 python src/RQ3_gen_com_corr.py            # similarity vs comorbidity (ARD) and genetic correlation
 python src/RQ3_scatter_cluster.py         # per-cluster scatter / statistics
 ```
@@ -139,14 +150,26 @@ python src/RQ3_scatter_cluster.py         # per-cluster scatter / statistics
 
 ## Statistical conventions
 
+- **Two-tailed permutation p-values.** Both the spin and BrainSMASH scripts
+  compute two-tailed empirical p-values: the minimum of the upper and lower
+  one-tailed counts is multiplied by 2 and capped at 1.0 before conversion to
+  a z-score. Signed z-scores are derived from the one-tailed probability to
+  preserve directionality, while the reported p-value is always two-tailed.
 - **Spatial null models.** Two complementary null frameworks are used
   throughout: (i) spin-based spatial permutations (10,000 rotations of the
   cortical surface using the DK-68 centroids) and (ii) BrainSMASH surrogate maps
   (10,000 surrogates) with matched spatial autocorrelation, built from the real
   cortical centroid distance matrix.
-- **Significance.** An association is reported as robust only when it survives
-  FDR correction under **both** null frameworks (`p_fdr_spin < 0.05` **and**
-  `p_fdr_brainsmash < 0.05`).
+- **FDR correction.** For the RQ1 similarity matrix, FDR-BH correction is
+  applied within each SUD column separately, independently for the spin and
+  BrainSMASH p-value matrices. For the RQ2 gradient analyses (C1, C2, C3, FC,
+  MPC), FDR-BH correction is applied **jointly across all five gradient tests**
+  within each null framework.
+- **Significance criterion.** An association is reported as robust only when it
+  survives FDR correction under **both** null frameworks simultaneously
+  (`p_fdr_spin < 0.05` **and** `p_fdr_brainsmash < 0.05`). The combined figure
+  (`RQ1_figure1_cortex_updated_combined.py`) implements this intersection
+  criterion directly for the heatmap asterisks.
 - **Reproducibility.** Random seeds are fixed (`np.random.seed(42)` and
   `seed=42` in BrainSMASH). Note that spin-based p-values in the fourth decimal
   place can vary slightly across BLAS/hardware configurations because of the

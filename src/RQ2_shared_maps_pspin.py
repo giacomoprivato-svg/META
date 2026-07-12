@@ -288,6 +288,7 @@ GLOBAL_STATS = []
 def run(name, psy_mat):
 
     sud_df = pd.read_excel(PATH_SUD).select_dtypes(include=np.number)
+    sud_df = sud_df.drop(columns=["SUD"])
     sud = sud_df.to_numpy()
 
     psy_mat = psy_mat
@@ -374,6 +375,8 @@ PSY_P, PSY_P_names = load(PATH_PSY_ADO)
 PSY_P_CTX, PSY_P_CTX_names = load(PATH_PSY_ADO_CTX)
 
 SUD_FULL, SUD_names = load(PATH_SUD)
+SUD_FULL = SUD_FULL[:, [n != "SUD" for n in SUD_names]]
+SUD_names = [n for n in SUD_names if n != "SUD"]
 
 # =====================================================
 # MERGE ADOLESCENT DISORDERS WITH CORTEX-ONLY DISORDERS

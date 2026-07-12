@@ -55,6 +55,8 @@ def load(path):
 
 PSY, psy_names = load(PATH_PSY)
 SUD, sud_names = load(PATH_SUD)
+SUD = SUD[:, [n != "SUD" for n in sud_names]]
+sud_names = [n for n in sud_names if n != "SUD"]
 
 def mean_effect(X):
     return np.nanmean(X, axis=1)

@@ -31,16 +31,6 @@ N_PERM = 10000
 # ======================
 # CORTICAL CENTROID DISTANCE MATRIX
 # ======================
-# FIX (previously this script fell back to np.arange(len(psy))[:, None] as
-# "coordinates" whenever brainsmash_test() was called without an explicit
-# coords argument, i.e. every time it was actually called in this file.
-# That treats the *row order* of the 68 DKT regions as if it were physical
-# distance, so the null model did NOT preserve real cortical spatial
-# autocorrelation. Every other BrainSMASH script in this repo
-# (RQ1_zscore_ctx_ptoz_brainsmash.py, RQ2_corr_C1C2C3.py,
-# RQ2_cluster_corr_C2C3.py, RQ2_corr_MPCFC.py) builds DISTMAT from the real
-# 3D cortical centroids instead. We do the same here so this script is
-# consistent with the rest of the pipeline.
 centsfile = os.path.join(BASE, "centroids_ctx_68.mat")
 with h5py.File(centsfile, "r") as f:
     LH = np.array(f["centroids_lh"]).T
@@ -110,7 +100,8 @@ def run_group(name, psy_mat, sud_mat):
 # ======================
 # MAIN
 # ======================
-SUD, _ = load_matrix(PATH_SUD)
+SUD, SUD_names = load_matrix(PATH_SUD)
+SUD = SUD[:, [n != "SUD" for n in SUD_names]]
 PSY_A, _ = load_matrix(PATH_PSY_ADULTS)
 PSY_P, _ = load_matrix(PATH_PSY_ADO)
 

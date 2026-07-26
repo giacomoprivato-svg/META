@@ -60,6 +60,10 @@ with h5py.File(centsfile, "r") as f:
 LH /= np.linalg.norm(LH, axis=1, keepdims=True)
 RH /= np.linalg.norm(RH, axis=1, keepdims=True)
 
+# Number of left-hemisphere parcels: this is the offset that the RH indices need.
+N_LH = LH.shape[0]
+assert N_LH + RH.shape[0] == N_CORTEX, "LH/RH centroid counts do not sum to N_CORTEX"
+
 # ======================
 # SPINS
 # ======================
@@ -82,10 +86,30 @@ def build_spins():
         R = rand_rotation_matrix()
         idxL = nn(LH, (R @ LH.T).T)
         idxR = nn(RH, (R @ RH.T).T)
+
+        # ---- FIX -------------------------------------------------------
+        # nn(RH, ...) returns indices INTO RH, i.e. 0..N_LH-1. The data
+        # vectors are ordered [LH parcels, RH parcels], so these indices must
+        # be shifted by N_LH before being concatenated. Without the shift the
+        # right-hemisphere positions of every surrogate map draw their values
+        # from the LEFT hemisphere, which both breaks the permutation and
+        # collapses the number of distinct source parcels per spin.
+        idxR = idxR + N_LH
+        # ----------------------------------------------------------------
+
         spins[k] = np.concatenate([idxL, idxR])
+
+    # Sanity checks: every spin must be a map from 0..N_CORTEX-1, and the RH
+    # block must never index into the LH block.
+    assert spins.max() == N_CORTEX - 1, "spin indices do not reach the RH block"
+    assert spins[:, N_LH:].min() >= N_LH, "RH positions are drawing LH values"
+
     return spins
 
 SPINS = build_spins()
+
+print("mean unique source parcels per spin: %.1f / %d"
+      % (np.mean([len(np.unique(s)) for s in SPINS]), N_CORTEX))
 
 # ======================
 # HELPERS
@@ -149,11 +173,15 @@ def leave_one_out_analysis(data_mat, colnames, label):
     for i in range(data_mat.shape[1]):
         reduced = np.delete(data_mat, i, axis=1)
         loo = zscore(mean_effect(reduced), nan_policy='omit')
-        r = np.corrcoef(full, loo)[0, 1]
+
+        # guard against NaNs, which np.corrcoef propagates silently
+        ok = np.isfinite(full) & np.isfinite(loo)
+        r = np.corrcoef(full[ok], loo[ok])[0, 1]
 
         results.append({
             "removed_disorder": colnames[i],
-            "correlation_with_full": r
+            "correlation_with_full": r,
+            "n_regions_used": int(ok.sum())
         })
 
     df = pd.DataFrame(results)
@@ -340,10 +368,12 @@ def run(name, psy_mat):
         "R_Accumbens"
     ]
 
+    # NOTE: these columns hold raw mean Cohen's d, not z-scores; renamed
+    # accordingly so the CSV does not misdescribe its own contents.
     df = pd.DataFrame({
         "region": regions,
-        "PSY_z": np.concatenate([psy_mean[:N_CORTEX], sctx_reordered]),
-        "SUD_z": np.concatenate([sud_mean[:N_CORTEX], reorder_sctx_for_csv(sud_mean[N_CORTEX:])]),
+        "PSY_mean_d": np.concatenate([psy_mean[:N_CORTEX], sctx_reordered]),
+        "SUD_mean_d": np.concatenate([sud_mean[:N_CORTEX], reorder_sctx_for_csv(sud_mean[N_CORTEX:])]),
         "shared_alteration": np.concatenate([shared[:N_CORTEX], reorder_sctx_for_csv(shared[N_CORTEX:])]),
         "PSY_contribution_%": np.concatenate([contrib[:N_CORTEX], reorder_sctx_for_csv(contrib[N_CORTEX:])])
     })

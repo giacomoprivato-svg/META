@@ -4,7 +4,8 @@ RQ3 - Neuroanatomical similarity vs comorbidity (ARD) and genetic correlation
 =============================================================================
 SPEARMAN primary version.
 
-
+Changes vs the Pearson version
+------------------------------
 1. Primary metric = Spearman rho (reads RAW_cortex_spearman.csv). Axis labels
    updated to "Spearman rho".
 2. Sample size of each test (n = number of pairs entering the regression) is
@@ -13,6 +14,20 @@ SPEARMAN primary version.
    the union of (top-10 by brain similarity) and (top-10 by the external
    measure), with a flag marking the pairs that populate the shaded overlap
    box in the figure.
+
+BUGFIX (this version)
+----------------------
+Previously the comorbidity and genetics tables were merged onto the brain
+dataframe SEQUENTIALLY (df.merge(comorb).merge(genetics)), both as inner
+joins. Because the genetics table only covers 4 SUD categories (ALC, NIC,
+COC, OPI; no CAN/ATS) and 8 PSY disorders (no CHR), that second inner join
+silently dropped valid comorbidity rows for CAN, ATS, and CHR pairs as a
+side effect -- shrinking the comorbidity analysis from its true n=35 down
+to n=21. The two external measures are now merged onto the brain dataframe
+INDEPENDENTLY (df_com_raw, df_gen_raw), each keeping all pairs for which
+that specific external measure is available. Genetics is unaffected by the
+fix (still n=32); comorbidity changes from n=21 to n=35, and its regression
+result changes accordingly (see analysis notes / Results text).
 """
 import os
 import numpy as np

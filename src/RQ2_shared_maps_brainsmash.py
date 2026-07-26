@@ -24,6 +24,7 @@ os.makedirs(OUTDIR, exist_ok=True)
 PATH_SUD = os.path.join(BASE, "SUD.xlsx")
 PATH_PSY_ADULTS = os.path.join(BASE, "PSY_adults.xlsx")
 PATH_PSY_ADO = os.path.join(BASE, "PSY_adolescents.xlsx")
+PATH_PSY_ADO_CTX = os.path.join(BASE, "PSY_adolescents_ctx.xlsx")  # <-- AGGIUNTO: BD, MDD (solo corteccia)
 
 N_CORTEX = 68
 N_PERM = 10000
@@ -104,6 +105,12 @@ SUD, SUD_names = load_matrix(PATH_SUD)
 SUD = SUD[:, [n != "SUD" for n in SUD_names]]
 PSY_A, _ = load_matrix(PATH_PSY_ADULTS)
 PSY_P, _ = load_matrix(PATH_PSY_ADO)
+PSY_P_CTX, _ = load_matrix(PATH_PSY_ADO_CTX)   # <-- AGGIUNTO: carica BD, MDD
+
+# <-- AGGIUNTO: unisci i 4 disturbi pediatrici (corteccia+subcorteccia) con
+#     BD e MDD (solo corteccia), esattamente come fa RQ2_shared_maps_pspin.py.
+#     Qui basta la sola corteccia perché run_group taglia comunque a N_CORTEX.
+PSY_P_COMBINED = np.hstack([PSY_P[:N_CORTEX], PSY_P_CTX])
 
 results = []
 
@@ -111,7 +118,7 @@ results = []
 results.append(run_group("ADULTS", PSY_A, SUD))
 
 # Adolescents
-results.append(run_group("ADOLESCENTS", PSY_P, SUD))
+results.append(run_group("ADOLESCENTS", PSY_P_COMBINED, SUD))  # <-- MODIFICATO: PSY_P -> PSY_P_COMBINED (6 disturbi invece di 4)
 
 # Cluster analysis (optional)
 CLUSTERS = {

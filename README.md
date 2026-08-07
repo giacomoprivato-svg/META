@@ -31,11 +31,11 @@ figures read the CSVs the analysis scripts write.
 
 | # | script | produces |
 |---|--------|----------|
-| 1 | `RQ1_similarity_pspin_brainsmash.py` | `RAW_`, `PVAL_`, `pFDR_` cortex, both nulls |
+| 1 | `RQ1_cortex_similarity.py` | `RAW_`, `PVAL_`, `pFDR_` cortex, both nulls |
 | 2 | `RQ1_raw_subctx.py` | `RAW_subctx_*` (descriptive, no null) |
 | 3 | `RQ1_similarity_specificity.py` | Δ specificity, both benchmarks |
 | 4 | `RQ1_similarity_suppl_table.py` | `SUPP_block_table.csv` |
-| 5 | `RQ1_figure1_cortex_updated_combined.py` | Panel A heatmap + pair ranking |
+| 5 | `RQ1_heatmap.py` | Panel A heatmap + pair ranking |
 | 6 | `RQ1_panelfingerprints.py` | Panel F cluster fingerprints |
 | 7 | `RQ1_similarity_spec_figure.py` | specificity figure |
 | 8 | `RQ1_suppl_concordance_subctx.py` | metric concordance, cortex vs subcortex |
@@ -53,7 +53,7 @@ listed under "Corrections" below existed because someone did.
 | 1 | `RQ2_shared.py` | shared maps, contribution index, systematic leave-one-out |
 | 2 | `RQ2_gradients.py` | analysis A (shared map × 5 gradients) and B (panel D) |
 | 3 | `RQ2_panel_heatmap.py` | Figure 3 panel D |
-| 4 | *(missing — see below)* | Figure 3 panel C |
+| 4 | `RQ2_shared_gradients_figure.py` | Figure 3 panel C (shared map vs 5 gradients, components shown) |
 | 5 | `RQ2_shared_PCA.py` | PC1 vs mean-based shared map |
 | — | `RQ2_shared_surfaces.py` | cortical/subcortical renders (needs ENIGMA Toolbox) |
 
@@ -63,7 +63,7 @@ listed under "Corrections" below existed because someone did.
 |---|--------|----------|
 | 1 | `RQ3_ageonset_regression.py` | age-of-onset models incl. mixed effects |
 | 2 | `RQ3_gen_corr.py` | genetics figure, comorbidity statistics, S22/S23 rankings |
-| 3 | *(missing — see below)* | cluster-stratified genetics supplementary |
+| 3 | `RQ3_gen_corr_cluster.py` | cluster-stratified genetics supplementary figure |
 
 ---
 
@@ -172,8 +172,17 @@ numbers.
   r(PSY, SUD) = 0.02 for that cluster; ASD's PC1 loading is ≈ 0.
 
 - **A null on C1 is cancellation, not absence.** The adult PSY and SUD
-  components correlate with C1 in opposite directions and the mean cancels
-  them. Figure 3 panel C shows both components for this reason.
+  components correlate with C1 in opposite directions (see the console output
+  of `RQ2_gradients.py`) and the mean cancels them. `RQ2_shared_gradients_figure.py`
+  draws both components for this reason — the connector between them turns red
+  whenever they straddle zero.
+
+- **Cluster-stratified genetics is descriptive, not inferential.** Within a
+  cluster the permutation grid is tiny (e.g. 2 disorders × 4 substances has
+  only 48 possible label arrangements), so the attainable *p* has a floor
+  around 0.02–0.04 regardless of effect size. `RQ3_gen_corr_cluster.py` prints
+  that floor next to every *p* for this reason. Mood/Anxiety is represented by
+  MDD alone (no PD phenotype in Grotzinger), so no line is fit for that panel.
 
 ---
 

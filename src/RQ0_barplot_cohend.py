@@ -26,13 +26,13 @@ N_CORTEX = 68
 N_SUBCORT = 14
 
 # ======================
-# CLUSTERS (AS YOU GAVE)
+# CLUSTERS 
 # ======================
 manual_clusters = {
     'Psychotic': ['SCZ','BD','CHR'],
     'Neurodevelopmental': ['ASD','ADHD'],
     'AN/OCD': ['AN','OCD'],
-    'Mood/Anxiety': ['MDD','PTSD']
+    'Mood/Anxiety': ['MDD','PD']
 }
 
 cluster_colors = {

@@ -18,7 +18,7 @@ data = [
     ["Autism spectrum disorder", 1571, 15.41, 8.64, 14.3],
     ["Anorexia nervosa", 685, 21.00, 5.50, 100.0],
     ["Schizophrenia cortical", 4474, 32.30, 10.00, 34.0],
-    ["PTSD", 1426, 39.60, np.nan, 28.7],
+    ["PD", 1146, 33.8, 12.2, 64.0],
     ["Clinical high risk", 1792, 20.80, 5.90, 46.4],
 ]
 
@@ -56,7 +56,7 @@ range_map = {
     "Autism spectrum disorder": (2, 64),
     "Anorexia nervosa": (15, 27),
     "Schizophrenia cortical": (np.nan, np.nan),
-    "PTSD": (17, 83),
+    "PD": (10.25, 66.0),
     "Clinical high risk": (10, 39),
 }
 
@@ -73,7 +73,7 @@ order = [
     "OCD cortical pediatric",
     "MDD cortical adult",
     "MDD cortical adolescent",
-    "PTSD",
+    "PD",
     "ADHD cortical",
     "ADHD child",
     "Autism spectrum disorder",
@@ -92,7 +92,7 @@ labels = [
     "OCD\nped",
     "MDD\nad",
     "MDD\nped",
-    "PTSD",
+    "PD",
     "ADHD",
     "ADHD\nchild",
     "ASD",

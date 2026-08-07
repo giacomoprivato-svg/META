@@ -1,166 +1,110 @@
 #!/usr/bin/env python3
 """
-RQ1 similarity pipeline — SUBCORTEX ONLY
-RAW values only (no permutations, no p-values, no z-scores)
-Measures:
-    - Spearman correlation
-    - Cosine similarity
-    - Negative Euclidean distance
+RQ1 — step 2: subcortical PSY x SUD similarity (raw, no null)
+=============================================================
+
+Replaces RQ1_raw_subctx.py.
+
+WHY NO NULL HERE
+----------------
+There are 14 subcortical structures and no centroid file for them, so neither
+a spin (needs a sphere) nor BrainSMASH (needs a distance matrix) can be built.
+With 14 points a null would in any case be too coarse to interpret. These
+values are descriptive and the Results should present them that way — the same
+position the previous version took, just stated explicitly.
+
+WHAT IS DIFFERENT
+-----------------
+1. FILENAMES NO LONGER COLLIDE. The old script wrote
+       RANK_spearman_by_ALC.csv
+   into ALL_outputs_RQ1/<group>/ — byte-for-byte the same path the CORTEX
+   script wrote its own ranking to. Whichever you ran last won, so the content
+   of those files depended on the order you pressed Run. Everything here now
+   carries `subctx` in the name.
+
+2. Statistics come from RQ1_common, so `spearman` means the same thing in
+   step 1 and step 2. The old script had its own private copy of the Spearman
+   function.
+
+3. Ranking is on RAW rho (it always was here — this script never had the
+   saturating z, unlike the cortex ones).
+
+Just press Run. Seconds.
 """
 
 import os
 import numpy as np
 import pandas as pd
-from scipy.spatial.distance import cdist
-from scipy.stats import rankdata
-from tqdm import tqdm
 
-# ---------------------------
-# USER OPTIONS
-# ---------------------------
-N_CORTEX = 68   # subcortex starts after 68 regions
-np.random.seed(42)
+import RQ1_common as C
 
+# ================= CONFIG — edit, then press Run =================
 GROUPS = [
-    ("adults_all", "PSY_adults.xlsx"),
+    ("adults_all",      "PSY_adults.xlsx"),
     ("adolescents_all", "PSY_adolescents.xlsx"),
-    ("adults_ctx", "PSY_adults_ctx.xlsx"),
+    ("adults_ctx",      "PSY_adults_ctx.xlsx"),
     ("adolescents_ctx", "PSY_adolescents_ctx.xlsx"),
 ]
+SUD_FILE = "SUD.xlsx"
+DROP_SUD_AGGREGATE = False       # keep consistent with step 1
+# ================================================================
 
-MEASURES = ["spearman", "cosine", "euclidean"]
-
-# ---------------------------
-# Paths
-# ---------------------------
 script_dir = os.path.dirname(os.path.abspath(__file__))
 repo_dir = os.path.dirname(script_dir)
 data_dir = os.path.join(repo_dir, "data", "raw")
-main_outdir = os.path.join(repo_dir, "ALL_outputs_RQ1")
-os.makedirs(main_outdir, exist_ok=True)
+OUT = os.path.join(repo_dir, "ALL_outputs_RQ1")
 
-# ---------------------------
-# Helpers
-# ---------------------------
-def spearman_rankcorr_obs(X, Y):
-    rx = rankdata(X, method="average")
-    ry = rankdata(Y, method="average")
-    mx, my = rx.mean(), ry.mean()
-    num = np.sum((rx-mx)*(ry-my))
-    den = np.sqrt(np.sum((rx-mx)**2)*np.sum((ry-my)**2))
-    return 0.0 if den == 0 else float(num/den)
 
-def read_excel_numeric_matrix(xlsx_path):
-    df = pd.read_excel(xlsx_path)
-    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    X = df[num_cols].to_numpy()
-    nonnum_cols = df.select_dtypes(exclude=[np.number]).columns.tolist()
-    if nonnum_cols:
-        region_names = df[nonnum_cols[0]].astype(str).to_numpy()
-    else:
-        region_names = np.array([f"R{i+1}" for i in range(df.shape[0])], dtype=str)
-    return X, num_cols, region_names
+def main():
+    drop = ["SUD"] if DROP_SUD_AGGREGATE else []
+    sud_sub, sud_names = C.subcortical_rows(os.path.join(data_dir, SUD_FILE), drop_cols=drop)
+    Y = sud_sub.to_numpy(float)
+    if Y.shape[0] == 0:
+        raise ValueError("SUD.xlsx has no rows past 68: no subcortical data.")
+    print(f"{Y.shape[0]} subcortical structures; SUD targets: {sud_names}")
 
-# ---------------------------
-# Load SUD
-# ---------------------------
-sud_file = os.path.join(data_dir, "SUD.xlsx")
-if not os.path.exists(sud_file):
-    raise FileNotFoundError("SUD.xlsx not found")
+    for group, fname in GROUPS:
+        path = os.path.join(data_dir, fname)
+        if not os.path.exists(path):
+            print(f"  !! {fname} missing, skipping {group}")
+            continue
+        psy_sub, psy_names = C.subcortical_rows(path)
+        if psy_sub.shape[0] == 0:
+            print(f"  {group}: cortex-only file, no subcortical rows — skipping")
+            continue
+        n = min(psy_sub.shape[0], Y.shape[0])
+        X = psy_sub.to_numpy(float)[:n, :]
+        Ys = Y[:n, :]
 
-X_sud, sud_names, _ = read_excel_numeric_matrix(sud_file)
+        outdir = os.path.join(OUT, group)
+        os.makedirs(outdir, exist_ok=True)
 
-# ---------------------------
-# Main loop
-# ---------------------------
-for group_label, psy_file_name in GROUPS:
+        RAW = {m: np.zeros((X.shape[1], Ys.shape[1])) for m in C.MEASURES}
+        for i in range(X.shape[1]):
+            obs = C.observed_similarity(X[:, i], Ys)
+            for m in C.MEASURES:
+                RAW[m][i] = obs[m]
 
-    print(f"\n== Running group: {group_label} ==")
+        for m in C.MEASURES:
+            pd.DataFrame(RAW[m], index=psy_names, columns=sud_names).to_csv(
+                os.path.join(outdir, f"RAW_subctx_{m}.csv"))
 
-    psy_file = os.path.join(data_dir, psy_file_name)
-    if not os.path.exists(psy_file):
-        raise FileNotFoundError(f"{psy_file_name} not found")
+        prim = RAW[C.PRIMARY]
+        for j, s in enumerate(sud_names):
+            o = np.argsort(-prim[:, j])
+            pd.DataFrame({"PSY": np.array(psy_names)[o],
+                          C.PRIMARY: prim[o, j]}).to_csv(
+                os.path.join(outdir, f"RANK_subctx_{C.PRIMARY}_by_{s}.csv"), index=False)
+        mo = np.argsort(-prim.mean(axis=1))
+        pd.DataFrame({"PSY": np.array(psy_names)[mo],
+                      f"mean_{C.PRIMARY}_over_SUD": prim.mean(axis=1)[mo]}).to_csv(
+            os.path.join(outdir, f"RANK_subctx_{C.PRIMARY}_mean_across_SUD.csv"), index=False)
 
-    outdir = os.path.join(main_outdir, group_label)
-    os.makedirs(outdir, exist_ok=True)
+        print(f"\n== {group} ({n} structures) — {C.PRIMARY} ==")
+        print(pd.DataFrame(prim, index=psy_names, columns=sud_names).round(3).to_string())
 
-    # Load PSY
-    X_psy, psy_names, _ = read_excel_numeric_matrix(psy_file)
+    print(f"\nDone. Outputs -> {OUT}/<group>/  (all filenames carry `subctx`)")
 
-    # ---------- Subcortex handling ----------
-    subctx_idx = np.arange(N_CORTEX, min(X_psy.shape[0], X_sud.shape[0]))
-    n_sub = len(subctx_idx)
 
-    if n_sub == 0:
-        print("No subcortical regions found — skipping.")
-        continue
-
-    X_psy_sub = X_psy[subctx_idx, :]
-    X_sud_sub = X_sud[subctx_idx, :]
-
-    n_psy = X_psy_sub.shape[1]
-    n_sud = X_sud_sub.shape[1]
-
-    # ---------- Containers ----------
-    RAW = {m: np.zeros((n_psy, n_sud)) for m in MEASURES}
-
-    # ---------- Compute similarity ----------
-    print("Computing subcortex RAW similarity...")
-
-    for i in tqdm(range(n_psy), desc="PSY maps"):
-        psy_vec = X_psy_sub[:, i]
-
-        for j in range(n_sud):
-            sud_vec = X_sud_sub[:, j]
-
-            # Spearman
-            RAW["spearman"][i, j] = spearman_rankcorr_obs(psy_vec, sud_vec)
-
-            # Cosine
-            nx = np.linalg.norm(psy_vec)
-            ny = np.linalg.norm(sud_vec)
-            if nx == 0 or ny == 0:
-                RAW["cosine"][i, j] = 0.0
-            else:
-                RAW["cosine"][i, j] = np.dot(psy_vec, sud_vec) / (nx * ny)
-
-            # Negative Euclidean distance
-            RAW["euclidean"][i, j] = -np.linalg.norm(psy_vec - sud_vec)
-
-    # ---------- Save CSV ----------
-    for m in MEASURES:
-        pd.DataFrame(
-            RAW[m],
-            index=psy_names,
-            columns=sud_names
-        ).to_csv(os.path.join(outdir, f"RAW_subctx_{m}.csv"))
-
-    # ---------- Ranking ----------
-    for m in MEASURES:
-        rank_idx = np.argsort(-RAW[m], axis=0)
-
-        for j, sname in enumerate(sud_names):
-            ord_psy = np.array(psy_names)[rank_idx[:, j]]
-            ord_val = RAW[m][rank_idx[:, j], j]
-
-            pd.DataFrame({
-                "Psychiatric_Disorder": ord_psy,
-                f"{m}_value": ord_val
-            }).to_csv(
-                os.path.join(outdir, f"RANK_{m}_by_{sname}.csv"),
-                index=False
-            )
-
-        # Mean across SUD
-        mean_val = np.nanmean(RAW[m], axis=1)
-        mean_idx = np.argsort(-mean_val)
-
-        pd.DataFrame({
-            "Psychiatric_Disorder": np.array(psy_names)[mean_idx],
-            f"Mean_{m}_over_SUD": mean_val[mean_idx]
-        }).to_csv(
-            os.path.join(outdir, f"RANK_{m}_mean_across_SUD.csv"),
-            index=False
-        )
-
-print("\n✅ Subcortex-only RAW similarity analysis completed.")
+if __name__ == "__main__":
+    main()

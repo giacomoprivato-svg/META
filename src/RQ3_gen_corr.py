@@ -1,50 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ3 — step 2: genetic correlation (figure) and comorbidity (statistics only)
-============================================================================
 
-Figure: 1 x 2, genetics only. Left = PSY-SUD, right = PSY-PSY (the
-within-domain reference). Panel geometry, figsize (16, 5), colours and output
-names are UNCHANGED. Comorbidity remains descriptive: numbers and full ranking
-exports, no scatter anywhere, per the PI's final call.
-
-WHAT CHANGED
-------------
-1. THE CANNABIS/COCAINE MISPAIRING IS NOW FIXED IN THE DATA, AND IT MOVES THE
-   RESULT. The column previously labelled COC in PSY_SUD_genetic_corr.xlsx
-   held the CUD (cannabis) estimates — the Grotzinger panel has no cocaine
-   phenotype at all — so cannabis genetic correlations were being regressed
-   against COCAINE morphometric similarity. With the column relabelled CAN it
-   now meets the cannabis map. On the updated brain maps this takes the
-   PSY-SUD association from r = +0.026 to r = +0.248 (both n = 28, both
-   non-significant). The guard below still refuses to run on a file
-   containing a COC column, so the old pairing cannot come back.
-
-2. PD IS ABSENT FROM THE GENETICS. Grotzinger reports no panic disorder
-   phenotype, so PSY_SUD_genetic_corr.xlsx now has 7 disorders (AN, OCD, SCZ,
-   BD, ASD, ADHD, MDD) and PSY_PSY_genetic_corr.xlsx is 7 x 7 -> 21 pairs
-   (was 28). Consequence to state in the Limitations: the Mood/Anxiety cluster
-   is represented in the genetic analyses by MDD alone, while RQ1 and RQ2
-   have both MDD and PD. This is a coverage gap, not a null result.
-
-3. COMORBIDITY COVERAGE IS REPORTED, NOT ASSUMED. The comorbidity workbook is
-   still keyed on PTSD, so with PD in the brain maps the merge silently drops
-   both. The script now prints exactly which disorders and which pairs were
-   lost on each side instead of quietly shrinking n — the same class of bug as
-   the earlier sequential-inner-join problem, which cut n from 35 to 21 and
-   masked the association.
-
-   THE COMORBIDITY QUANTITY MUST BE P(SUD | PSY). Any row that reports
-   P(PSY | SUD) instead is measuring the reverse conditional and cannot be
-   pooled with the others. Check any newly added source against this before
-   putting it in the workbook.
-
-4. CLUSTERS COME FROM RQ1_common (the local assign_cluster still had PTSD).
-
-5. No statsmodels dependency for the fits: the OLS line and its 95% band are
-   computed in closed form, matching the RQ1 figure scripts.
-
-Just press Run.
 """
 import os
 import itertools

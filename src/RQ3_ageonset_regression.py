@@ -1,54 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ3 — step 1: cortical similarity to SUD vs age of onset (SPEARMAN primary)
-===========================================================================
 
-Figure layout, fonts, panel geometry, log x-axis, IQR strip and output names
-are UNCHANGED. What changed is upstream and inferential.
-
-WHAT CHANGED
-------------
-1. PTSD -> PD everywhere, and PSY_age_of_onset.xlsx now carries panic disorder
-   (peak 15.5, median 26, IQR 18-36) instead of PTSD (peak 15.5, median 30,
-   IQR 17-48). The peak is identical, so the PRIMARY model — which regresses
-   on Peak — barely moves; the IQR strip in the lower panel does move, and it
-   is the median/IQR that changes the visual impression of where the
-   Mood/Anxiety cluster sits.
-
-2. THE MIXED MODEL IS FOLDED IN HERE, AS A NUMBER, NOT A FIGURE. The old
-   RQ3_ageonset_mixedeffect.py was a separate script that read
-   Z_cortex_euclidean.csv — a file the rewritten pipeline no longer produces,
-   on a metric that stopped being primary, standardised by a z that no longer
-   exists. It should be deleted from the repo, not just left unrun. Its
-   result now appears in RQ3_ageonset_model_stats.csv with
-   analysis = "mixed_effects_all_pairs" and is printed to the console.
-
-   READ THIS BEFORE QUOTING THE MIXED-MODEL p. Peak age of onset is CONSTANT
-   within each disorder-by-population group, and the model puts a random
-   intercept on exactly that grouping. The predictor therefore lives entirely
-   in the between-group variance that the random intercept is also absorbing,
-   and the two compete for the same signal. The mixed model here is not a
-   more powerful version of the group-mean OLS — it is the same contrast with
-   an extra variance component fitted on top, and its standard error is
-   sensitive to how that component converges. It is reported because the
-   n = 15 group-mean model discards the within-group spread, and a reviewer
-   may ask what happens if you keep it. The PRIMARY inference remains the
-   n = 15 OLS. If the two disagree, say so rather than picking the smaller p.
-
-3. QUADRATIC TERM still fitted and exported, still not drawn (PI decision).
-
-4. Model fitting no longer silently returns empty on small n: it says which
-   analysis was skipped and why.
-
-UNCHANGED
----------
-- Primary metric = Spearman rho, read from RAW_cortex_spearman.csv.
-- Inference on UNTRANSFORMED Peak; the axis and the drawn fit are in log10
-  space, so the linear fit renders straight.
-- Primary model = n = 15 disorder-by-population group means. Sensitivity:
-  unique disorders (n = 10) and adults only (n = 9).
-
-Just press Run.
 """
 import os
 import numpy as np
@@ -81,6 +34,43 @@ os.makedirs(os.path.dirname(OUTFIG_COMBINED), exist_ok=True)
 SHOW_QUADRATIC_FIT = False      # PI: keep it in the stats, off the panel
 RUN_MIXED_MODEL = True          # result only, no figure
 
+# The aggregate all-SUD map. Set to False only to reproduce the old, inflated
+# seven-category numbers for comparison — never for anything that goes in the
+# manuscript. Matching is case-insensitive and whitespace-stripped; add spellings
+# here if a future export renames the column.
+EXCLUDE_AGGREGATE_SUD = True
+AGGREGATE_SUD_NAMES = ["SUD", "ALL_SUD", "ALLSUD", "SUD_ALL", "ALL SUD"]
+N_EXPECTED_SUD = 6              # substance-specific maps: ALC ATS CAN COC NIC OPI
+
+RUN_AGE_AT_SCAN = True          # robustness (b); stats only, no figure
+
+# Mean age at scan of the PATIENT group, keyed by PSY_main exactly as the script
+# builds it (PSY label + "_" + population). Values from Table S1.
+#   n_cases, mean age at scan, SD, % female
+# ADHD_ado_ped and BD_ped are None: Table S1 does not report a separate
+# adolescent ADHD sample or a separate pediatric BD sample, so those two groups
+# drop out of the age-at-scan analysis (n = 13 instead of 15). Fill them in if
+# the numbers become available — do not substitute the combined-sample age.
+AGE_AT_SCAN = {
+    # adults
+    "ADHD_adult":   {"n": 2246, "age": 19.22, "sd": 11.31, "pct_f": 25.9},
+    "AN_adult":     {"n":  685, "age": 21.00, "sd":  5.50, "pct_f": 100.0},
+    "ASD_adult":    {"n": 1571, "age": 15.41, "sd":  8.64, "pct_f": 14.3},
+    "BD_adult":     {"n": 2447, "age": 38.40, "sd": 10.90, "pct_f": 41.3},
+    "CHR_adult":    {"n": 1792, "age": 20.80, "sd":  5.90, "pct_f": 46.4},
+    "MDD_adult":    {"n": 1911, "age": 43.20, "sd": 12.60, "pct_f": 64.5},
+    "OCD_adult":    {"n": 1498, "age": 31.31, "sd":  9.74, "pct_f": 49.9},
+    "PD_adult":     {"n": 1146, "age": 33.80, "sd": 12.20, "pct_f": 64.0},
+    "SCZ_adult":    {"n": 4474, "age": 32.30, "sd": 10.00, "pct_f": 34.0},
+    # pediatric
+    "ADHD_ch_ped":  {"n": 2707, "age": 10.11, "sd":  0.57, "pct_f": 50.6},
+    "ADHD_ado_ped": None,
+    "CD_ped":       {"n": 1185, "age": 13.71, "sd":  3.01, "pct_f": 28.6},
+    "OCD_ped":      {"n":  407, "age": 13.69, "sd":  2.58, "pct_f": 47.2},
+    "BD_ped":       None,
+    "MDD_ped":      {"n":  237, "age": 19.10, "sd":  1.80, "pct_f": 68.4},
+}
+
 PSY_COLORS = {"SCZ": "#1f77b4", "BD": "#ff7f0e", "MDD": "#2ca02c", "PD": "#d62728",
               "ASD": "#9467bd", "ADHD": "#8c564b", "AN": "#e377c2", "OCD": "#7f7f7f",
               "CD": "#bcbd22", "CHR": "#17becf"}
@@ -107,6 +97,31 @@ if missing_colors:
 # -----------------------
 # LOAD BRAIN DATA
 # -----------------------
+_aggregate_drop_log = []        # (file, column) for every aggregate column removed
+
+
+def drop_aggregate_sud(brain, path):
+    """
+    Remove the all-SUD aggregate column from a PSY x SUD similarity matrix.
+
+    Returns the matrix without it and appends to _aggregate_drop_log so the
+    caller can prove, after all files are read, that the drop actually fired.
+    Silence here is exactly the failure mode we are guarding against: an
+    aggregate column that survives under an unexpected name would re-enter
+    every mean without changing anything visible.
+    """
+    if not EXCLUDE_AGGREGATE_SUD:
+        return brain
+    wanted = {n.strip().upper() for n in AGGREGATE_SUD_NAMES}
+    hits = [c for c in brain.columns if str(c).strip().upper() in wanted]
+    for c in hits:
+        _aggregate_drop_log.append((os.path.basename(os.path.dirname(path)), c))
+    out = brain.drop(columns=hits)
+    remaining = [c for c in out.columns if str(c).strip().upper() in wanted]
+    assert not remaining, f"aggregate column survived the drop in {path}: {remaining}"
+    return out
+
+
 def load_brain_data(dirs, population_label, merge_adhd=False):
     records = []
     for d in dirs:
@@ -121,6 +136,8 @@ def load_brain_data(dirs, population_label, merge_adhd=False):
         if brain.shape[1] == 0:
             raise ValueError(f"{path} read with 0 data columns — check its delimiter.")
         brain.index.name = "PSY"
+        # Drop the aggregate BEFORE any melt, so nothing downstream ever sees it.
+        brain = drop_aggregate_sud(brain, path)
         if merge_adhd:
             adhd_cols = [c for c in brain.columns if c.startswith("ADHD")]
             for col in adhd_cols:
@@ -163,6 +180,78 @@ df_combined = pd.concat([df_adult, df_ped], ignore_index=True)
 df_combined = df_combined[~df_combined["PSY_main"].str.contains(
     "Schizotyp", case=False, na=False)]
 
+# -----------------------
+# AGGREGATE-EXCLUSION AUDIT
+# -----------------------
+# Everything above is unchanged logic; this block only proves the exclusion
+# happened and that the pair count is what the manuscript will claim.
+if EXCLUDE_AGGREGATE_SUD:
+    if not _aggregate_drop_log:
+        raise RuntimeError(
+            "EXCLUDE_AGGREGATE_SUD is True but no aggregate column was found in any "
+            f"RAW_cortex_{METRIC}.csv. Columns actually present: "
+            f"{sorted(df_combined['SUD'].unique())}. Add the correct spelling to "
+            "AGGREGATE_SUD_NAMES — do NOT just switch the flag off.")
+    print("\n--- Aggregate all-SUD map excluded ---")
+    for src, col in _aggregate_drop_log:
+        print(f"  dropped column '{col}' from {src}")
+
+sud_cats = sorted(df_combined["SUD"].unique())
+n_groups = df_combined["PSY_main"].nunique()
+print(f"  SUD categories retained ({len(sud_cats)}): {sud_cats}")
+print(f"  {n_groups} disorder-by-population groups, {len(df_combined)} pairwise "
+      f"observations")
+
+if EXCLUDE_AGGREGATE_SUD and len(sud_cats) != N_EXPECTED_SUD:
+    raise RuntimeError(
+        f"expected {N_EXPECTED_SUD} substance-specific maps after excluding the "
+        f"aggregate, got {len(sud_cats)}: {sud_cats}")
+
+# Per-group balance check. An unbalanced group means a missing pair somewhere,
+# which would quietly bias the group mean that the primary model regresses on.
+counts = df_combined.groupby("PSY_main")["SUD"].nunique()
+unbalanced = counts[counts != len(sud_cats)]
+if len(unbalanced):
+    print(f"  [warn] groups without all {len(sud_cats)} SUD categories:\n{unbalanced}")
+
+# -----------------------
+# AGE AT SCAN
+# -----------------------
+unknown_keys = sorted(set(df_combined["PSY_main"]) - set(AGE_AT_SCAN))
+if unknown_keys:
+    raise KeyError(
+        f"AGE_AT_SCAN has no entry for {unknown_keys}. Every group must be listed "
+        f"explicitly, as None if no age at scan is available — an absent key would "
+        f"silently become a missing value and shrink the analysis without warning. "
+        f"Keys defined: {sorted(AGE_AT_SCAN)}")
+
+df_combined["AgeAtScan"] = df_combined["PSY_main"].map(
+    lambda k: AGE_AT_SCAN[k]["age"] if AGE_AT_SCAN[k] else np.nan)
+df_combined["N_cases"] = df_combined["PSY_main"].map(
+    lambda k: AGE_AT_SCAN[k]["n"] if AGE_AT_SCAN[k] else np.nan)
+
+no_scan_age = sorted({k for k in df_combined["PSY_main"].unique() if not AGE_AT_SCAN[k]})
+if no_scan_age:
+    print(f"  [note] no age at scan for {no_scan_age} — these groups enter the "
+          f"age-of-onset models but drop out of the age-at-scan robustness check")
+
+# -----------------------
+# WHICH MAPS ENTER THE MAIN ANALYSIS
+# -----------------------
+inventory = (df_combined.groupby(["PSY_main", "Population"])
+             .agg(n_pairs=("Similarity", "size"),
+                  mean_similarity=("Similarity", "mean"),
+                  peak_age_onset=("Peak", "first"),
+                  age_at_scan=("AgeAtScan", "first"),
+                  n_cases=("N_cases", "first"))
+             .reset_index()
+             .sort_values(["Population", "PSY_main"]))
+print("\n--- Maps entering the PRIMARY age-of-onset analysis ---")
+print(inventory.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+print(f"  {(inventory['Population'] == 'adult').sum()} adult + "
+      f"{(inventory['Population'] == 'ped').sum()} pediatric = {len(inventory)} groups. "
+      f"The primary analysis is NOT restricted to adults.")
+
 
 # -----------------------
 # MODELS
@@ -186,14 +275,17 @@ def fit_models(df_points, analysis_label):
     return ([{"analysis": analysis_label, "model": "linear", "term": "Peak",
               "estimate": m_lin.params["Peak"], "ci_low_95": ci_lin[0],
               "ci_high_95": ci_lin[1], "p_value": p_lin,
-              "r_squared": m_lin.rsquared, "n": n},
+              "r_squared": m_lin.rsquared, "n": n,
+              "n_sud_categories": len(sud_cats)},
              {"analysis": analysis_label, "model": "quadratic", "term": "Peak2",
               "estimate": m_q.params["Peak2"], "ci_low_95": ci_q[0],
               "ci_high_95": ci_q[1], "p_value": p_q,
-              "r_squared": m_q.rsquared, "n": n}], p_lin, p_q)
+              "r_squared": m_q.rsquared, "n": n,
+              "n_sud_categories": len(sud_cats)}], p_lin, p_q)
 
 
-def fit_mixed(df_pairs):
+def fit_mixed(df_pairs, terms=(("Peak", ["Peak"]), ("logPeak", ["logPeak"])),
+              analysis_label="mixed_effects_all_pairs"):
     """
     Random-intercept model over ALL pairwise observations, grouped by
     disorder-by-population. See the docstring: Peak is constant within group,
@@ -201,24 +293,50 @@ def fit_mixed(df_pairs):
     between-group variance. Reported, not primary.
     """
     from statsmodels.regression.mixed_linear_model import MixedLM
-    d = df_pairs.dropna(subset=["Similarity", "Peak"]).copy()
-    d["logPeak"] = np.log(d["Peak"])
+    needed = sorted({c for _, cols in terms for c in cols if c != "logPeak"})
+    d = df_pairs.dropna(subset=["Similarity"] + needed).copy()
+    if "Peak" in d.columns:
+        d["logPeak"] = np.log(d["Peak"])
     out = []
-    for term, cols in (("Peak", ["Peak"]), ("logPeak", ["logPeak"])):
+    for term, cols in terms:
         try:
             m = MixedLM(d["Similarity"], sm.add_constant(d[cols]),
                         groups=d["PSY_main"]).fit()
             ci = m.conf_int().loc[term]
-            out.append({"analysis": "mixed_effects_all_pairs",
+            out.append({"analysis": analysis_label,
                         "model": f"random intercept ~ {term}", "term": term,
                         "estimate": m.params[term], "ci_low_95": ci[0],
                         "ci_high_95": ci[1], "p_value": m.pvalues[term],
                         "r_squared": np.nan, "n": len(d),
                         "n_groups": d["PSY_main"].nunique(),
+                        "n_sud_categories": len(sud_cats),
                         "converged": bool(m.converged)})
         except Exception as e:
             print(f"  [mixed] {term} failed to fit: {type(e).__name__}: {e}")
     return out
+
+
+def fit_ols_terms(df_points, xcols, analysis_label, model_label):
+    """
+    OLS of Similarity on one or more UNTRANSFORMED predictors, returning one
+    stats row per predictor. Used for the age-at-scan robustness checks and for
+    the adjusted model; the age-of-onset models keep going through fit_models()
+    so their behaviour is untouched.
+    """
+    d = df_points.dropna(subset=["Similarity"] + list(xcols))
+    n = len(d)
+    if n < len(xcols) + 2 or any(np.ptp(d[c]) == 0 for c in xcols):
+        print(f"  [skip] {analysis_label}: n = {n} for predictors {list(xcols)}")
+        return []
+    m = sm.OLS(d["Similarity"], sm.add_constant(d[list(xcols)])).fit()
+    rows = []
+    for c in xcols:
+        ci = m.conf_int().loc[c]
+        rows.append({"analysis": analysis_label, "model": model_label, "term": c,
+                     "estimate": m.params[c], "ci_low_95": ci[0], "ci_high_95": ci[1],
+                     "p_value": m.pvalues[c], "r_squared": m.rsquared, "n": n,
+                     "n_sud_categories": len(sud_cats)})
+    return rows
 
 
 def fmt_p(p):
@@ -282,6 +400,7 @@ def plot_on_ax(ax, df, title):
     all_stats += s_u + s_a
 
     print("\n--- Age of onset: linear model on Peak ---")
+    print(f"  (similarity averaged over {len(sud_cats)} SUD categories: {sud_cats})")
     print(f"  PRIMARY  disorder x population   n = {n_test:2d}  {fmt_p(p_lin)}"
           f"   [quadratic {fmt_p(p_quad)}]")
     print(f"  sens.    unique disorders        n = {len(df_unique):2d}  {fmt_p(p_lin_u)}"
@@ -301,9 +420,11 @@ def plot_on_ax(ax, df, title):
               "the random intercept. Do not read it as a more powerful test.")
 
     figs = os.path.join(BASE_DIR, "figures")
-    df_mean.assign(analysis="primary_disorder_by_population").to_csv(
+    df_mean.assign(analysis="primary_disorder_by_population",
+                   n_sud_categories=len(sud_cats)).to_csv(
         os.path.join(figs, "RQ3_ageonset_points_primary.csv"), index=False)
-    df_unique.assign(analysis="sensitivity_unique_disorder").to_csv(
+    df_unique.assign(analysis="sensitivity_unique_disorder",
+                     n_sud_categories=len(sud_cats)).to_csv(
         os.path.join(figs, "RQ3_ageonset_points_unique_disorder.csv"), index=False)
     return all_stats, band_df
 
@@ -354,10 +475,78 @@ plt.savefig(OUTFIG_COMBINED, dpi=300, bbox_inches="tight")
 plt.savefig(OUTFIG_COMBINED.replace(".png", ".pdf"), bbox_inches="tight")
 print(f"\nSaved: {OUTFIG_COMBINED}")
 
+# -----------------------
+# ROBUSTNESS (stats only, no figure)
+# -----------------------
+# Recomputed here rather than returned from plot_on_ax so the plotting path stays
+# exactly as it was.
+df_mean = (df_combined.groupby("PSY_main")
+           .agg(Similarity=("Similarity", "mean"), Peak=("Peak", "first"),
+                AgeAtScan=("AgeAtScan", "first"), Population=("Population", "first"))
+           .reset_index())
+df_mean_adult = df_mean[df_mean["Population"] == "adult"]
+
+robust_stats = []
+
+# (a) adults only, age of onset - already fitted inside plot_on_ax as
+# "sensitivity_adults_only"; reported here in full rather than as a bare p.
+print("\n--- ROBUSTNESS (a): age of onset, ADULT MAPS ONLY ---")
+for r in [x for x in model_stats
+          if x["analysis"] == "sensitivity_adults_only" and x["model"] == "linear"]:
+    print(f"  n = {r['n']}  b = {r['estimate']:+.5f} per year  "
+          f"95% CI [{r['ci_low_95']:+.5f}, {r['ci_high_95']:+.5f}]  "
+          f"{fmt_p(r['p_value'])}  R2 = {r['r_squared']:.3f}")
+
+if RUN_AGE_AT_SCAN:
+    # (b) age at scan - expected to be null
+    robust_stats += fit_ols_terms(df_mean, ["AgeAtScan"],
+                                  "robustness_agescan_all_groups", "linear")
+    robust_stats += fit_ols_terms(df_mean_adult, ["AgeAtScan"],
+                                  "robustness_agescan_adults_only", "linear")
+    # Peak alone on the SAME 13 groups that have an age at scan, so that any
+    # change in the adjusted model is attributable to the adjustment and not to
+    # the two groups lost for lack of an age-at-scan value.
+    robust_stats += fit_ols_terms(df_mean.dropna(subset=["AgeAtScan"]), ["Peak"],
+                                  "robustness_peak_alone_agescan_subset", "linear")
+    robust_stats += fit_ols_terms(df_mean, ["Peak", "AgeAtScan"],
+                                  "robustness_peak_adjusted_for_agescan",
+                                  "linear, two predictors")
+    robust_stats += fit_mixed(df_combined,
+                              terms=(("AgeAtScan", ["AgeAtScan"]),),
+                              analysis_label="mixed_effects_agescan_all_pairs")
+
+    print("\n--- ROBUSTNESS (b): age at SCAN (expected: null) ---")
+    for r in robust_stats:
+        lab = f"{r['analysis']} [{r['term']}]"
+        print(f"  {lab:<58s} n = {r['n']:3d}  b = {r['estimate']:+.5f}  "
+              f"95% CI [{r['ci_low_95']:+.5f}, {r['ci_high_95']:+.5f}]  "
+              f"{fmt_p(r['p_value'])}")
+
+    both = df_mean.dropna(subset=["Peak", "AgeAtScan"])
+    r_pear = np.corrcoef(both["Peak"], both["AgeAtScan"])[0, 1]
+    print(f"\n  Peak vs age at scan across the {len(both)} groups with both: "
+          f"r = {r_pear:+.3f}. The adjusted model is separating two correlated "
+          f"predictors; read its Peak coefficient with that in mind.")
+    robust_stats.append({"analysis": "diagnostic_peak_vs_agescan_correlation",
+                         "model": "pearson", "term": "Peak~AgeAtScan",
+                         "estimate": r_pear, "ci_low_95": np.nan,
+                         "ci_high_95": np.nan, "p_value": np.nan,
+                         "r_squared": np.nan, "n": len(both),
+                         "n_sud_categories": len(sud_cats)})
+
+model_stats = list(model_stats) + robust_stats
+
 figs = os.path.join(BASE_DIR, "figures")
+df_mean.assign(n_sud_categories=len(sud_cats)).round(6).to_csv(
+    os.path.join(figs, "RQ3_ageonset_points_with_agescan.csv"), index=False)
+inventory.round(6).to_csv(
+    os.path.join(figs, "RQ3_ageonset_map_inventory.csv"), index=False)
+
 pd.DataFrame(model_stats).round(6).to_csv(
     os.path.join(figs, "RQ3_ageonset_model_stats.csv"), index=False)
 print(f"Saved: {os.path.join(figs, 'RQ3_ageonset_model_stats.csv')}")
+print(f"Saved: {os.path.join(figs, 'RQ3_ageonset_points_with_agescan.csv')}")
+print(f"Saved: {os.path.join(figs, 'RQ3_ageonset_map_inventory.csv')}")
 if band_df is not None:
     band_df.round(6).to_csv(os.path.join(figs, "RQ3_ageonset_CI_band.csv"), index=False)
     print(f"Saved: {os.path.join(figs, 'RQ3_ageonset_CI_band.csv')}")

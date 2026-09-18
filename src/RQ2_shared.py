@@ -1,58 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ2 — step 1: shared PSY-SUD alteration maps
-============================================
 
-Replaces RQ2_shared_maps_pspin.py, RQ2_shared_maps_brainsmash.py and
-RQ2_shared_without_AN.py. Surface rendering moves to RQ2_surfaces.py; this
-script produces the numbers and the map CSVs only, so it runs anywhere the
-ENIGMA Toolbox is not installed.
-
-WHAT IT DOES
-------------
-For adults, the pediatric sample and each clinical cluster:
-  * r(PSY mean, SUD mean) with spin AND BrainSMASH nulls
-  * the shared map (PSY mean + SUD mean)/2, cortex and subcortex
-  * the PSY contribution index per region, |PSY| / (|PSY| + |SUD|)
-
-Then one systematic sensitivity, replacing the old AN-only script.
-
-WHAT CHANGED
-------------
-1. HEMISPHERE FIX AND SUD FIX BOTH INHERITED, NOT RETYPED. Spins come from
-   RQ1_common. The old pspin script had the fix but as a local copy, and the
-   BrainSMASH twin had neither the fix nor the SUD drop, so the two nulls for
-   the same analysis were computed on different data. They now share one
-   loader and one geometry.
-
-2. SYSTEMATIC LEAVE-ONE-OUT, NOT JUST AN. RQ2_shared_without_AN.py existed
-   because AN's effect sizes are ~3x the others and dominate the unweighted
-   PSY mean. Singling out AN answers only the question you already suspected.
-   The LOO here drops every psychiatric map in turn AND every substance map in
-   turn, and reports two different things per drop:
-       delta_r         how much r(PSY mean, SUD mean) moves
-       r_map_vs_full   how much the SHARED MAP itself moves
-   These can disagree: a map can barely shift the correlation while noticeably
-   changing the shared map, or the reverse. AN appears in the table like
-   everything else, and if it is the outlier that is now a result rather than
-   an assumption.
-
-3. THE CIRCULARITY DIAGNOSTIC IS FIXED — IT WAS MEASURING THE WRONG THING.
-   Reporting r(shared, SUD mean) as evidence that the shared map is "mostly
-   SUD" is not a diagnostic at all: for a mean of two maps it is determined
-   entirely by their mutual correlation r and their sd ratio k,
-
-       r(A+B, B) = (k*r + 1) / sqrt(k^2 + 2*k*r + 1)
-
-   With the observed r = .720 and k = .680 that formula returns .953, which is
-   exactly the observed value. Two maps correlating at .72 ALWAYS produce a
-   mean correlating ~.9 with each of them. The script now prints the observed
-   value next to the arithmetic prediction, so a deviation from prediction is
-   visible and a match is recognised as uninformative. The quantity that
-   actually carries information is the per-gradient comparison of the two
-   components, which is step 2's job.
-
-Just press Run.
 """
 
 import os

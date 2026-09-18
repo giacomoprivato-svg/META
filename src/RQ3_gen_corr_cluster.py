@@ -1,62 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ3 — step 3: cluster-stratified similarity vs genetic correlation (Supplementary)
-==================================================================================
 
-One 2 x 2 figure, one panel per a priori clinical cluster, each point a PSY-SUD
-pair. Figure geometry (12, 10), cluster colours, panel order and font sizes are
-unchanged from the previous RQ3_gen_com_suppl.py.
-
-WHAT CHANGED
-------------
-1. COMORBIDITY IS GONE FROM THIS FIGURE. Kept exploratory, in the text and in
-   the ranking exports from step 2 only. The old script also read
-   age_onset_prevalence_of_disorders.xlsx, which does not exist in the repo —
-   it would have crashed on the first run.
-
-2. PD IS ABSENT FROM THE GENETICS, AND SO IS CHR. Grotzinger has no panic
-   disorder phenotype and no clinical-high-risk phenotype. Read the per-panel
-   n printed below before interpreting anything: Mood/Anxiety now contains
-   MDD alone, i.e. four points that all come from one disorder, and Psychotic
-   contains SCZ and BD without CHR. A Pearson r across four cells from a
-   single disorder is not an estimate of anything — the script refuses to fit
-   a line below MIN_N and says so on the panel instead of drawing one.
-
-3. PERMUTATION p HAS A FLOOR HERE, AND THE FLOOR IS REPORTED. Within a cluster
-   the grid is tiny: with 2 disorders x 4 substances there are only
-   2! x 4! = 48 distinct label arrangements, so the smallest attainable
-   permutation p is about 1/49 = 0.020; with 1 disorder it is 1/25 = 0.040.
-   No within-cluster result can be more significant than that no matter how
-   strong the association. The parametric p is also computed, and is
-   anti-conservative for the same reason it is in the main analysis. Both are
-   exported; neither should carry weight on its own at these sample sizes.
-
-4. BH-FDR across the four clusters comes from RQ1_common, not statsmodels.
-
-ON THE CHOICE OF TEST (the PSY-SUD vs PSY-PSY question)
--------------------------------------------------------
-PSY-SUD uses a bipartite permutation and PSY-PSY uses a Mantel test, and that
-is not two different methods — it is one method, permutation of ENTITY labels,
-applied to two different geometries.
-
-  * PSY-PSY is a symmetric disorder x disorder matrix: rows and columns index
-    the SAME entities, so the permutation must be applied jointly (o, o).
-    Permuting rows and columns independently would destroy the symmetry and
-    produce a null the observed statistic could never have come from. This is
-    the classic Mantel test, and it is what Patel et al. (JAMA Psychiatry
-    2021) used for exactly this comparison — genetic correlation against
-    cross-disorder cortical thickness correlation, reported with a Mantel p.
-  * PSY-SUD is a rectangular disorder x substance matrix: rows and columns
-    index DIFFERENT entities, so a joint permutation is not even defined
-    (7 rows, 4 columns). Rows and columns are permuted independently, each
-    within its own domain.
-
-In both cases the null preserves the fact that each entity contributes a whole
-row or a whole column of non-independent pairs. The asymmetry is forced by the
-data structure, not chosen. Say this in the Methods in one sentence so it does
-not read as an inconsistency.
-
-Just press Run. Requires RQ1_step1 and RQ3_step2.
 """
 
 import os

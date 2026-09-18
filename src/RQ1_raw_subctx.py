@@ -1,35 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ1 — step 2: subcortical PSY x SUD similarity (raw, no null)
-=============================================================
 
-Replaces RQ1_raw_subctx.py.
-
-WHY NO NULL HERE
-----------------
-There are 14 subcortical structures and no centroid file for them, so neither
-a spin (needs a sphere) nor BrainSMASH (needs a distance matrix) can be built.
-With 14 points a null would in any case be too coarse to interpret. These
-values are descriptive and the Results should present them that way — the same
-position the previous version took, just stated explicitly.
-
-WHAT IS DIFFERENT
------------------
-1. FILENAMES NO LONGER COLLIDE. The old script wrote
-       RANK_spearman_by_ALC.csv
-   into ALL_outputs_RQ1/<group>/ — byte-for-byte the same path the CORTEX
-   script wrote its own ranking to. Whichever you ran last won, so the content
-   of those files depended on the order you pressed Run. Everything here now
-   carries `subctx` in the name.
-
-2. Statistics come from RQ1_common, so `spearman` means the same thing in
-   step 1 and step 2. The old script had its own private copy of the Spearman
-   function.
-
-3. Ranking is on RAW rho (it always was here — this script never had the
-   saturating z, unlike the cortex ones).
-
-Just press Run. Seconds.
 """
 
 import os
@@ -46,7 +18,12 @@ GROUPS = [
     ("adolescents_ctx", "PSY_adolescents_ctx.xlsx"),
 ]
 SUD_FILE = "SUD.xlsx"
-DROP_SUD_AGGREGATE = False       # keep consistent with step 1
+
+# --- keep these identical to step 1 ---
+DROP_SUD_AGGREGATE = False       # False = RAW_subctx_* keeps the 7-column panel
+AGGREGATE_IN_STATS = False       # False = the means use six substance maps only
+AGGREGATE_COL = "SUD"
+N_SUBSTANCE_MAPS = 6
 # ================================================================
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -55,13 +32,41 @@ data_dir = os.path.join(repo_dir, "data", "raw")
 OUT = os.path.join(repo_dir, "ALL_outputs_RQ1")
 
 
+def statistics_columns(sud_names):
+    """
+    Indices of the SUD columns allowed into the means. Same contract as step 1:
+    raises rather than silently proceeding if the aggregate cannot be found or
+    the remaining panel is not the expected six.
+    """
+    if AGGREGATE_IN_STATS:
+        return list(range(len(sud_names))), list(sud_names)
+
+    target = AGGREGATE_COL.strip().upper()
+    idx = [k for k, s in enumerate(sud_names) if str(s).strip().upper() != target]
+    names = [sud_names[k] for k in idx]
+
+    if len(names) == len(sud_names) and not DROP_SUD_AGGREGATE:
+        raise RuntimeError(
+            f"AGGREGATE_IN_STATS is False but no column named {AGGREGATE_COL!r} was "
+            f"found in {sud_names}. Fix AGGREGATE_COL — do not switch the flag.")
+    if len(names) != N_SUBSTANCE_MAPS:
+        raise RuntimeError(
+            f"expected {N_SUBSTANCE_MAPS} substance-specific maps for the means, "
+            f"got {len(names)}: {names}")
+    return idx, names
+
+
 def main():
-    drop = ["SUD"] if DROP_SUD_AGGREGATE else []
+    drop = [AGGREGATE_COL] if DROP_SUD_AGGREGATE else []
     sud_sub, sud_names = C.subcortical_rows(os.path.join(data_dir, SUD_FILE), drop_cols=drop)
     Y = sud_sub.to_numpy(float)
     if Y.shape[0] == 0:
         raise ValueError("SUD.xlsx has no rows past 68: no subcortical data.")
-    print(f"{Y.shape[0]} subcortical structures; SUD targets: {sud_names}")
+    stat_cols, stat_names = statistics_columns(sud_names)
+
+    print(f"{Y.shape[0]} subcortical structures; SUD panel ({len(sud_names)}): {sud_names}")
+    print(f"  RAW matrices written for all {len(sud_names)} columns; "
+          f"means over {len(stat_names)}: {stat_names}")
 
     for group, fname in GROUPS:
         path = os.path.join(data_dir, fname)
@@ -90,18 +95,23 @@ def main():
                 os.path.join(outdir, f"RAW_subctx_{m}.csv"))
 
         prim = RAW[C.PRIMARY]
-        for j, s in enumerate(sud_names):
+        prim_stats = prim[:, stat_cols]
+        for j, s in zip(stat_cols, stat_names):
             o = np.argsort(-prim[:, j])
             pd.DataFrame({"PSY": np.array(psy_names)[o],
                           C.PRIMARY: prim[o, j]}).to_csv(
                 os.path.join(outdir, f"RANK_subctx_{C.PRIMARY}_by_{s}.csv"), index=False)
-        mo = np.argsort(-prim.mean(axis=1))
+        mo = np.argsort(-prim_stats.mean(axis=1))
         pd.DataFrame({"PSY": np.array(psy_names)[mo],
-                      f"mean_{C.PRIMARY}_over_SUD": prim.mean(axis=1)[mo]}).to_csv(
+                      f"mean_{C.PRIMARY}_over_SUD": prim_stats.mean(axis=1)[mo],
+                      "n_sud_categories": len(stat_names)}).to_csv(
             os.path.join(outdir, f"RANK_subctx_{C.PRIMARY}_mean_across_SUD.csv"), index=False)
 
         print(f"\n== {group} ({n} structures) — {C.PRIMARY} ==")
-        print(pd.DataFrame(prim, index=psy_names, columns=sud_names).round(3).to_string())
+        shown = pd.DataFrame(prim, index=psy_names, columns=sud_names)
+        print(shown.round(3).to_string())
+        if len(stat_names) < len(sud_names):
+            print(f"   (mean_across_SUD excludes '{AGGREGATE_COL}')")
 
     print(f"\nDone. Outputs -> {OUT}/<group>/  (all filenames carry `subctx`)")
 

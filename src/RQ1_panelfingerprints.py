@@ -1,25 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ1 - Panel F (PSY cluster fingerprints), standalone
-====================================================
-SPEARMAN primary version. Double the width of the D/E figure.
-Legend: horizontal, below the plot, outside the axes.
 
-UNCHANGED: figsize (16, 6), all font sizes, colours, legend placement,
-axhline, tick rotation, output name. The figure is identical in every
-dimension to the previous version.
-
-CHANGED: cluster MEMBERSHIP is imported from RQ1_common instead of being
-re-declared here. The Mood/Anxiety cluster is [MDD, PD] now that panic
-disorder has replaced PTSD. Membership was previously hardcoded in four
-scripts; when a disorder is swapped, three of them get updated and one does
-not, and the one that does not fails silently — `[psy_names.index(d) for d in
-disorders if d in psy_names]` just drops the missing name and plots the
-cluster mean over whatever is left. That is a wrong line on a figure with no
-error and no warning. check_cluster_coverage now raises instead.
-
-The COLOURS stay local and stay exactly as they were (RGB tuples), so the
-figure looks the same as the one already in the manuscript.
 """
 import os
 import numpy as np

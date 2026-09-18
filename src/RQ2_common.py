@@ -1,47 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ2_common — shared machinery for RQ2, built on top of RQ1_common
-=================================================================
 
-WHY THIS EXISTS
----------------
-The nine RQ2 scripts in the repo each carried their own copy of the spin
-machinery, their own SUD loader and their own FDR. An audit of the committed
-versions found:
-
-  HEMISPHERE BUG present in 5 of the 6 scripts that build spins.
-      RQ2_corr_gradients.py, RQ2_corr_C1C2C3.py, RQ2_corr_MPCFC.py,
-      RQ2_cluster_corr_C2C3.py and RQ2_shared_PCA_corr.py all do
-          idxR = nn(RH, (R @ RH.T).T)          # 0..33
-          spins[k] = concatenate([idxL, idxR]) # RH positions get LH values
-      Only RQ2_shared_maps_pspin.py has the fix, and it applied it locally
-      (idxR + N_LH) instead of importing it, so it never propagated.
-      For C1-C3 this is close to a no-op — those maps are bilaterally
-      mirrored — but FC and MPC are not (LH-RH r = .95 and .87), so every
-      published FC/MPC spin p-value came from the broken spin.
-
-  SUD DOUBLE-COUNTING present in 7 of 9. SUD.xlsx carries a generic aggregate
-      `SUD` column alongside six substance-specific ones; averaging all seven
-      overweights the pooled patients. Only RQ2_corr_gradients.py and
-      RQ2_shared_maps_pspin.py drop it.
-
-Both fixes now live in exactly one place: RQ1_common, imported here. There is
-no local spin code in RQ2 any more, and the guard assertion in
-RQ1_common.make_spins fires if a stale cache is ever loaded.
-
-METRIC
-------
-RQ1 reports Spearman rho as its primary metric; the RQ2 gradient correlations
-have always been PEARSON r (np.corrcoef in every script). That is a defensible
-choice — gradient scores are continuous and roughly linear against effect-size
-maps, and Dear et al. report Pearson — but it was never stated anywhere, it was
-just what np.corrcoef does. It is now an explicit constant, GRADIENT_METRIC, so
-the Methods can say which it is and a sensitivity run costs one edit.
-
-CLUSTER LABELS
---------------
-Unified with RQ1_common: "Mood/Anxiety" and "Neurodevelopmental" (the RQ2
-scripts used "Mood/Anx" and "Neurodev"). Mood/Anxiety is [MDD, PD].
 """
 
 import os

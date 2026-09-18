@@ -1,38 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ2 — step 3: Figure 3, panel D
-===============================
 
-Correlations only, no brain surfaces.
-  columns : SUD mean, adult PSY mean, pediatric PSY mean, and the four cluster
-            PSY means — component maps, never shared maps
-  rows    : C1, C2, C3   (C1 is retained deliberately)
-
-Asterisks mark cells surviving FDR under BOTH null frameworks; with only one
-null present the script falls back to it and warns.
-
-The FDR family is analysis B itself (7 x 3 = 21 tests), applied upstream in
-RQ2_step2_gradients.py. Nothing is re-corrected here.
-
-Figure geometry is UNCHANGED from AIM2_step2: figsize (12.5, 3.1), VLIM 0.75,
-white minor grid, no frame, values inside the cells, and the standalone
-colorbar file at (3.2, 0.28) with end ticks only and the label above.
-
-WHAT CHANGED
-------------
-1. Reads B_panelD_components.csv (analysis B of the rewritten step 2) instead
-   of PART2_panelD_decomposed.csv. The `map` column is gone — analysis B
-   contains component maps only by construction, so there is nothing left to
-   filter and no way to plot a shared-map row here by accident.
-
-2. Cluster keys are the long RQ1_common names, "Mood/Anxiety" and
-   "Neurodevelopmental". The display labels on the axis are unchanged.
-
-3. It fails loudly if a requested column is missing from the CSV. The old
-   version would have raised a bare KeyError from the pandas indexer, which on
-   a 7-column reindex is not obvious to read.
-
-Just press Run. Requires RQ2_step2_gradients.py.
 """
 
 import os
@@ -44,9 +13,9 @@ import matplotlib.pyplot as plt
 
 # ================= CONFIG — edit, then press Run =================
 FS_TITLE = 15
-FS_LABEL = 13
-FS_TICK = 12
-FS_CELL = 12
+FS_LABEL = 15
+FS_TICK = 15
+FS_CELL = 15
 SHOW_VALUES = True       # False = asterisks only
 VLIM = 0.75              # colour scale limit, symmetric around zero
 CB_WIDTH_IN = 3.2
@@ -110,7 +79,7 @@ ax.set_xticks(range(len(COL_ORDER)))
 ax.set_xticklabels([COL_LABELS[c] for c in COL_ORDER], fontsize=FS_TICK)
 ax.set_yticks(range(len(ROWS)))
 ax.set_yticklabels(ROWS, fontsize=FS_TICK)
-ax.set_title("D. Transcriptional components", loc="left", fontsize=FS_TITLE)
+ax.set_title("", loc="left", fontsize=FS_TITLE)
 ax.tick_params(axis="both", which="major", length=0)
 for side in ("top", "right", "bottom", "left"):
     ax.spines[side].set_visible(False)

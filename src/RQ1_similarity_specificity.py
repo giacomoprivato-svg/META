@@ -1,77 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ1 — AIM1 step 1: SPECIFICITY OF THE PSY-SUD HIERARCHY
-=======================================================
 
-Question, design and caveats are unchanged from the previous version and are
-reproduced at the bottom of this docstring. What changed is the plumbing.
-
-WHAT CHANGED
-------------
-1. BRAINSMASH GEOMETRY CORRECTED — THIS MOVES NUMBERS. The old script did
-
-       LH, RH = load_centroids(data_dir)      # <- returned UNIT-SPHERE centroids
-       D = cdist(np.vstack([LH, RH]), ...)
-
-   i.e. it fitted variograms against distances between points projected onto
-   the unit sphere. Normalising centroids is not a uniform rescaling — regions
-   sit at different distances from the origin — so the distance matrix was a
-   distorted version of cortical geometry. Meanwhile the pairwise BrainSMASH
-   script used RAW centroids. The two analyses in the same paper were using
-   different brains.
-
-   Now everything goes through C.distance_matrix(), which uses RAW centroids.
-   The unit sphere is used only for spins, where a rotation requires it.
-   EXPECT THE BRAINSMASH DELTA P-VALUES TO DIFFER from your previous run. The
-   spin p-values and every observed quantity are unaffected.
-
-2. SURROGATES CACHED. C.get_surrogates keys on a hash of the map, so the nine
-   BrainSMASH runs happen once. Re-running with a different benchmark, a
-   different FDR family or an extra sensitivity metric then costs seconds. If
-   one disorder changes, only that disorder is regenerated.
-
-3. SPINS SHARED. C.make_spins writes to ALL_outputs_RQ1/_cache, the same file
-   the pairwise script uses, so AIM1 and the pairwise analysis are built on
-   identical rotations. Previously AIM1 kept its own copy in a different
-   folder.
-
-4. CLUSTERS COME FROM RQ1_common. This script used to declare its own dict
-   spelling the groups "Mood/Anxiety"/"Neurodevelopmental" while the
-   supplementary-table script spelled them "Mood/Anx"/"Neurodev". Joining the
-   two on cluster produced NaN. PTSD is now PD.
-
-5. NO DUPLICATED STATISTICS. bh_fdr, the two-tailed p and the rank-correlation
-   helper are imported, not redefined.
-
---- unchanged design notes -------------------------------------------------
-For each adult psychiatric disorder i (n = 9):
-    mSUD_i  = mean_j rho(PSY_i, SUD_j)     j = 6 substance-specific maps
-    mPSY_i  = weighted mean over the other 8 PSY maps
-    Delta_i = mSUD_i - mPSY_i              > 0 = preferential to SUD
-
-Both nulls recompute BOTH means from the SAME surrogate, preserving the
-dependency between the two targets, so the null is not centred on zero: it
-absorbs baseline differences between the two target sets.
-
-NOTE 1  SUD set = six substance maps only; the all-SUD column is dropped so
-        neither side gains an aggregation advantage.
-NOTE 2  The six substance maps share one control sample (n = 1951); the eight
-        PSY maps do not. State this in the Methods.
-NOTE 3  The two means run over 6 vs 8 targets; the null carries the same
-        asymmetry.
-NOTE 4  Parcel bootstrap ignores spatial autocorrelation -> mildly
-        ANTI-conservative. Descriptive precision, not a second test.
-NOTE 5  No pediatric Delta: 5 maps, two from one study, benchmark too unstable.
-NOTE 6  Do not attach inference to r(mPSY, mSUD) across 9 points.
-NOTE 7  TARGET-SET COHERENCE. The SUD side is internally uniform
-        (within-set rho ~ .68), the PSY side heterogeneous (~ .15). Averaging
-        over a heterogeneous set attenuates toward zero, so a positive Delta
-        can come partly from coherence asymmetry. The spin null does not
-        absorb this. `delta_proto` repeats the contrast with both sides as a
-        single composite map; the gap between delta and delta_proto measures
-        how much rides on coherence. Report both.
-
-Just press Run.
 """
 
 import os

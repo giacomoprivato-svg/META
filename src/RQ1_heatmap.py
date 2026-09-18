@@ -1,33 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ1 - Panel A (PSY x SUD heatmap), standalone
-=============================================
-SPEARMAN primary version (raw rho; rank correspondence between maps).
 
-Layout, ordering, colour scale, font sizes, aspect ratio and the separate
-colorbar file are UNCHANGED from Figure2_Spearman_final_combined. The figure
-canvas is still 26 x 14 and the heatmap still occupies the rect
-[0.05, 0.1, 0.5, 0.8], i.e. 13 x 11.2 inches, so with bbox_inches="tight" the
-panel comes out at exactly the size it did when B/C/D shared the canvas.
-
-ONLY THREE THINGS CHANGED, all forced by the pipeline rewrite:
-
-1. FILENAME. The spin p-values are now read from
-   PVAL_cortex_{metric}_spin.csv. They used to be PVAL_cortex_{metric}.csv,
-   a name that did not say which null or which compartment produced it — and
-   the subcortex script wrote files with colliding names into the same folder.
-
-2. FDR. C.bh_fdr_by_column replaces statsmodels.fdrcorrection. Same procedure
-   (BH within each SUD column, then intersect the two nulls), same numbers,
-   one less dependency and one less implementation of FDR in the paper.
-
-3. Reads 7 SUD columns including the transdiagnostic all-SUD map, as before.
-   Caption note: that column is a weighted composite of the other six, so it
-   is not independent of them.
-
-Panel D/E/F (fingerprints) live in RQ1_panelF_fingerprints.py, unchanged.
-
-Just press Run.
 """
 
 import os

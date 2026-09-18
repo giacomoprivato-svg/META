@@ -10,17 +10,34 @@ Panel A : does the choice of similarity metric change the picture? Primary
           -Euclidean. They live on very different scales, so cosine is on the
           left axis and -Euclidean on a twin right axis. OLS fit + 95% band.
 Panel B : does the cortical result hold subcortically? Cortex rho against
-          subcortex rho for the same 63 pairs, coloured by clinical cluster.
+          subcortex rho for the same 54 pairs, coloured by clinical cluster.
 
-BOTH p-VALUES ARE MANTEL, NOT PARAMETRIC — and this matters. The 63 points are
-not independent: each psychiatric map contributes 7 of them and each SUD map
-contributes 9, so a parametric p on n = 63 is badly anti-conservative. The
+BOTH p-VALUES ARE MANTEL, NOT PARAMETRIC — and this matters. The 54 points are
+not independent: each psychiatric map contributes 6 of them and each SUD map
+contributes 9, so a parametric p on n = 54 is badly anti-conservative. The
 Mantel p permutes the rows and columns of one matrix, preserving that
 dependency structure. Report the Mantel p; the parametric one is available
 only as a diagnostic.
 
 WHAT CHANGED
 ------------
+0. THE AGGREGATE all-SUD COLUMN IS DROPPED FROM BOTH PANELS. This script reads
+   RAW_cortex_* and RAW_subctx_*, which keep all seven columns by design (they
+   are the descriptive matrices the manuscript shows for completeness). Every
+   panel here is an analysis, not a display, so the aggregate has no place in
+   it: its 2312 cases are the union of the six substance-specific case groups
+   and it contributes a whole redundant column to a 9 x 7 grid.
+
+   This matters more here than elsewhere, because the Mantel null permutes
+   COLUMNS. A column that is a composite of the other six is not exchangeable
+   with them, so leaving it in violates the null the test is built on, not
+   just the pair count. Both panels now run on 9 x 6 = 54 pairs.
+
+   EXPECT THE MANTEL p-VALUES TO MOVE. Unlike the pairwise FDR — where the
+   family is a single column and dropping one column changes nothing — this
+   test is computed over the whole matrix, so removing a column changes both
+   the observed r and the permutation distribution.
+
 1. NO STATSMODELS. The OLS fit and its confidence band are computed directly
    (closed form, 12 lines). statsmodels is not installed in every environment
    this repo runs in, and this was the only script that needed it.
@@ -53,6 +70,13 @@ EXCLUDE = []
 METRIC = C.PRIMARY
 METRIC_LABEL = r"Spearman $\rho$"
 SENSITIVITY = ["cosine", "euclidean"]
+
+# The transdiagnostic aggregate, excluded from both panels (see change 0).
+# Set EXCLUDE_AGGREGATE_SUD = False only to reproduce the old 63-pair figure.
+EXCLUDE_AGGREGATE_SUD = True
+AGGREGATE_SUD_NAMES = ["SUD", "ALL_SUD", "ALLSUD", "SUD_ALL", "ALL SUD"]
+N_SUBSTANCE_MAPS = 6
+
 N_MANTEL = 10000
 CI_ALPHA = 0.05
 SEED = 42
@@ -71,13 +95,32 @@ GDIR = os.path.join(repo_dir, "ALL_outputs_RQ1", GROUP)
 FIGDIR = os.path.join(repo_dir, "figures")
 os.makedirs(FIGDIR, exist_ok=True)
 
+_dropped_aggregate = []
+
+
+def drop_aggregate(df, tag):
+    """
+    Remove the aggregate all-SUD column from a PSY x SUD matrix.
+
+    Records what it removed so the caller can prove, after all files are read,
+    that the exclusion actually fired. A column surviving under an unexpected
+    name would otherwise re-enter the Mantel test invisibly.
+    """
+    if not EXCLUDE_AGGREGATE_SUD:
+        return df
+    wanted = {n.strip().upper() for n in AGGREGATE_SUD_NAMES}
+    hits = [c for c in df.columns if str(c).strip().upper() in wanted]
+    _dropped_aggregate.extend((tag, c) for c in hits)
+    return df.drop(columns=hits)
+
 
 def read(tag):
     p = os.path.join(GDIR, f"{tag}.csv")
     if not os.path.exists(p):
         raise FileNotFoundError(f"{p}\nRun RQ1_step1 / RQ1_step2 first.")
     df = pd.read_csv(p, index_col=0)
-    return df.drop(index=[i for i in df.index if i in EXCLUDE], errors="ignore")
+    df = df.drop(index=[i for i in df.index if i in EXCLUDE], errors="ignore")
+    return drop_aggregate(df, tag)
 
 
 def ols_band(x, y, xg, alpha=CI_ALPHA):
@@ -108,6 +151,9 @@ def mantel(A, B, n=N_MANTEL, seed=SEED):
     Label-permutation p for the correlation between two PSY x SUD matrices.
     Rows and columns of B are permuted independently, preserving the fact that
     each disorder contributes a whole row and each substance a whole column.
+
+    The exchangeability this relies on is why the aggregate column has to go:
+    a column that is a composite of the others is not exchangeable with them.
     """
     a = np.asarray(A, float).ravel()
     b = np.asarray(B, float)
@@ -160,6 +206,21 @@ def main():
     sub = read(f"RAW_subctx_{METRIC}").reindex_like(prim)
     psy_names, sud_names = list(prim.index), list(prim.columns)
     C.check_cluster_coverage(psy_names)
+
+    # ---- audit the exclusion before anything is computed ----
+    if EXCLUDE_AGGREGATE_SUD:
+        if not _dropped_aggregate:
+            raise RuntimeError(
+                f"EXCLUDE_AGGREGATE_SUD is True but no aggregate column was found in "
+                f"any input. Columns present: {sud_names}. Add the correct spelling to "
+                f"AGGREGATE_SUD_NAMES — do not switch the flag off.")
+        if len(sud_names) != N_SUBSTANCE_MAPS:
+            raise RuntimeError(
+                f"expected {N_SUBSTANCE_MAPS} substance-specific maps after the drop, "
+                f"got {len(sud_names)}: {sud_names}")
+        for tag, col in _dropped_aggregate:
+            print(f"  dropped aggregate column '{col}' from {tag}")
+
     print(f"{len(psy_names)} x {len(sud_names)} = {prim.size} pairs; SUD: {sud_names}")
 
     fig, (axA, axB) = plt.subplots(1, 2, figsize=FIGSIZE)

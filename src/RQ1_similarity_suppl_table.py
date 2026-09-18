@@ -1,39 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ1 — AIM1 step 2: supplementary block table
-============================================
 
-Descriptive companion to the Delta analysis. For each adult psychiatric
-disorder: mean rho with the SUD block, mean rho with each a priori psychiatric
-cluster, own cluster reported separately (it is what contaminates the
-unrestricted benchmark), and Delta with its p-values under both benchmarks.
-
-The point of the table is where the SUD block sits relative to a disorder's OWN
-spectrum and to the rest of psychopathology. That intermediate position is what
-the Results should state, and it does not depend on which benchmark was chosen
-for the inferential test.
-
-WHAT CHANGED
-------------
-1. CLUSTER NAMES NO LONGER DIVERGE. This script used to declare its own dict
-   with "Mood/Anx" and "Neurodev", while step 1 wrote "Mood/Anxiety" and
-   "Neurodevelopmental" into SPECIFICITY_delta_adults_*.csv. The two were then
-   joined. The join was on the index (disorder), so it did not break — but any
-   later merge on the cluster column would have silently produced NaN, and the
-   two tables in the same supplement disagreed on what the groups were called.
-   Both now read C.CLUSTER_MEMBERS. Mood/Anxiety holds PD, not PTSD.
-
-2. THE SIMILARITY MATRICES ARE READ, NOT RECOMPUTED. Step 1 already writes
-   PSYxPSY_spearman_adults.csv and PSYxSUD_spearman_adults_6substances.csv.
-   Recomputing them here from the Excel files meant two independent code paths
-   could produce two different versions of the same supplementary number —
-   exactly the drift this rewrite is removing. Set RECOMPUTE = True to rebuild
-   from source and cross-check instead (it asserts agreement).
-
-3. It no longer silently skips a missing benchmark file: it says which script
-   to run.
-
-Just press Run. Requires AIM1_step1.
 """
 
 import os

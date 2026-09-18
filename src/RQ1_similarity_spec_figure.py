@@ -18,23 +18,6 @@ maps sharing one control sample) and a heterogeneous one (eight psychiatric
 maps). A point above the diagonal is therefore not automatically evidence of
 SUD-specific affinity — it has to clear the band.
 
-WHAT CHANGED
-------------
-1. CLUSTERS AND COLOURS FROM RQ1_common, so this figure cannot disagree with
-   SUPP_block_table.csv about which disorders are in which group, or about
-   what the groups are called. PTSD -> PD.
-
-2. LABEL PLACEMENT IS AUTOMATIC. The old script hardcoded manual offsets for
-   CHR, BD and SCZ with a comment citing the exact rho values that made them
-   collide (".4964 vs .4958"). Those values change the moment a map changes —
-   and a map just did. Overlapping labels are now pushed apart by a short
-   iterative repulsion pass, so the figure survives the next data change.
-   Set MANUAL_OFFSETS if you want to override a specific label.
-
-3. It states the significance convention it actually used instead of assuming
-   both nulls are present.
-
-Just press Run. Requires RQ1_AIM1_step1_specificity_delta.py.
 """
 
 import os

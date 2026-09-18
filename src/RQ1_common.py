@@ -1,71 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ1_common — the ONLY place RQ1 statistics are defined
-======================================================
 
-Before this rewrite there were three independent copies of the RQ1 machinery:
-RQ1_common.py (imported by nothing except the AIM1 script), and private copies
-inside RQ1_similarity_pspin.py and RQ1_similarity_brainsmash.py. They had
-drifted apart in four ways that changed results:
-
-  * the spin scripts still had the UNFIXED hemisphere code (idxR without +34),
-    so every spin p-value they produced was wrong;
-  * the spin cache was named `spins_ctx_68.mat`, identical to the old buggy
-    cache, so a rerun silently reloaded the broken spins instead of
-    regenerating them;
-  * spins were generated inside the loop over GROUPS, so `adults_all` and
-    `adults_ctx` used different rotations, and their p-values were later
-    FDR-corrected together as if they were one family;
-  * BrainSMASH got raw centroids in one script and unit-normalised centroids
-    in another. Normalising centroids is NOT a uniform rescaling of the
-    distance matrix, so the two scripts fitted variograms on different
-    geometries.
-
-Everything now goes through this module.
-
-CONVENTIONS FIXED HERE (state them in the Methods)
---------------------------------------------------
-METRIC     Spearman rho is primary. Cosine and (-)Euclidean are sensitivity
-           metrics. Pearson is not computed: it never entered the manuscript,
-           and the claim in the old docstring that it was primary was simply
-           false. MEASURES[0] is the primary metric everywhere.
-
-NO Z       The old pipeline reported z = sign * norm.isf(p_one), which is a
-           deterministic function of p and saturates at norm.isf(1/(n+1))
-           = 3.719 for n = 10000. Rankings built on it had artificial ties at
-           the ceiling. z is gone. Ranking uses RAW rho (a common scale across
-           all pairs); significance is the permutation p and its FDR.
-
-GEOMETRY   Two different objects, deliberately:
-             - spins need centroids projected on the unit sphere (a rotation
-               is only meaningful there)          -> load_centroids(unit=True)
-             - BrainSMASH needs true inter-regional distances, because it fits
-               a variogram against them           -> distance_matrix() uses
-                                                     RAW centroids
-           Getting this backwards distorts the variogram, which is the whole
-           point of the method.
-
-SPINS      Generated ONCE, for all groups, cached under a filename that
-           encodes both n_perm and the fix (`_fixed`), so a stale cache from
-           the buggy era can never be loaded by accident. A guard assertion
-           re-checks the hemisphere block on every load.
-
-SURROGATES BrainSMASH surrogates depend only on (map, distance matrix, n_perm,
-           seed) — not on the target, the benchmark, or anything downstream.
-           They are cached to disk keyed by a hash of the map's bytes. Change
-           one region and the hash changes and only that map is regenerated;
-           change nothing and a rerun costs seconds.
-
-NULL HYPOTHESIS
----------------
-For each PSY-SUD pair the psychiatric map is spatially randomised while the
-SUD map is held fixed. Both nulls preserve the psychiatric map's effect-size
-distribution exactly (BrainSMASH with resample=True draws from the empirical
-values, so ties are preserved too) and reproduce its spatial autocorrelation;
-only its alignment with the SUD map is randomised. Significance therefore
-reflects spatial correspondence and is by construction independent of
-effect-size magnitude — and, because observed and null share the same tie
-structure, independent of the map's numerical precision.
 """
 
 import os

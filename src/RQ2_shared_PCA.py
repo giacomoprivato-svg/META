@@ -1,55 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ2 — step 5: PC1 vs the mean-based shared map (convergence check)
-==================================================================
 
-Replaces the statistical half of RQ2_shared_PCA_corr.py. That script was 467
-lines of PCA, spin machinery and VTK rendering in one file, with the
-hemisphere bug and without the SUD-aggregate drop; the surfaces now live in
-RQ2_surfaces.py and everything shared comes from RQ1_common / RQ2_common.
-
-WHAT THIS ANSWERS
------------------
-The shared map is built as a mean: (mean of 9 PSY maps + mean of 6 SUD maps)/2.
-A reviewer can reasonably ask whether that choice drives the result, and the
-usual reply is "the first principal component across all maps gives the same
-picture". This script produces that number.
-
-READ THE CAVEAT BEFORE QUOTING THE CORRELATION
------------------------------------------------
-A high r between PC1 and the mean is close to a tautology, for the same reason
-r(shared, SUD mean) = .95 was. When a set of standardised maps are all
-positively correlated with one another, the leading eigenvector has near-equal
-loadings and PC1 is then approximately proportional to their mean. Reporting
-"PC1 correlates .9x with the shared map" as evidence that the construction is
-robust is therefore almost circular.
-
-What is NOT automatic, and what the script reports instead:
-
-  1. HOW EQUAL THE LOADINGS ACTUALLY ARE. If every map loads similarly, PC1 is
-     the mean and the check is vacuous but honest. If a few maps dominate, PC1
-     and the mean genuinely differ and the agreement means something.
-     Quantified as the coefficient of variation of the loadings and as the
-     effective number of maps contributing (a participation ratio: 15 means
-     perfectly even, 1 means a single map).
-
-  2. THE DOMAIN-WEIGHTING ASYMMETRY. The mean-based shared map gives each
-     DOMAIN 50% by construction. PC1 over 15 maps gives each MAP equal footing,
-     so psychiatry gets 9/15 = 60% and substances 40% before any data are
-     looked at. The two constructions therefore weight the domains differently
-     on purpose, and the script reports the PSY and SUD shares of the squared
-     loadings so that difference is visible rather than assumed away.
-
-  3. WHERE THEY DISAGREE. The per-parcel difference between the two maps
-     (both z-scored, so the comparison is about shape not scale), and the
-     parcels where it is largest.
-
-PC1's SIGN IS ARBITRARY. sklearn can return either polarity; the script flips
-it to align with the shared map and says whether it had to. Any script that
-correlates a PCA component with something else and does not do this can
-produce a sign-flipped result on a rerun with a different library version.
-
-Just press Run.
 """
 
 import os
@@ -61,7 +13,7 @@ import RQ1_common as C
 import RQ2_common as R2
 
 # ================= CONFIG — edit, then press Run =================
-NULLS = ["spin"]          # add "brainsmash" for the second framework
+NULLS = ["spin", "brainsmash"]          # add "brainsmash" for the second framework
 N_PERM = 10000
 N_TOP = 8                 # parcels to list where the two maps disagree most
 # ================================================================

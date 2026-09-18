@@ -1,29 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ2 — step 4: Figure 3, panel C — adult shared map vs the five gradients
-========================================================================
 
-Analysis A of RQ2_step2_gradients.py, drawn. One row per gradient:
-
-  * a filled marker for the adult SHARED map, the tested quantity, with an
-    asterisk when it survives its BH family (5 tests, applied upstream)
-  * two small open markers for the PSY and SUD components, joined by a thin
-    connector, descriptive and NOT part of any family
-
-The components are on the figure for one reason. On C1 they fall on OPPOSITE
-sides of zero (PSY negative, SUD positive) and the shared map lands near zero
-between them. Without the components on the panel, that cell reads as "the
-shared pattern is not organised along C1", which is not what the data say:
-the two domains ARE organised along C1, in opposite directions, and the mean
-cancels them. The connector is drawn in a warning colour whenever the two
-components straddle zero, so the distinction is visible rather than buried in
-a supplementary table.
-
-The x-axis is a correlation, so it is fixed to a symmetric range and the zero
-line is drawn: a reader should be able to see how far from zero each estimate
-is without reading numbers off.
-
-Just press Run. Requires RQ2_step2_gradients.py.
 """
 
 import os

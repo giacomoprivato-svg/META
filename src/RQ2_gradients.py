@@ -1,56 +1,7 @@
 #!/usr/bin/env python3
 """
 RQ2 — step 2: gradient alignment, two declared analyses
-=======================================================
 
-Replaces RQ2_corr_C1C2C3.py, RQ2_corr_MPCFC.py, RQ2_corr_gradients.py and
-RQ2_cluster_corr_C2C3.py, and takes over PART 2 of AIM2_step1_loo_panelD.py.
-
-TWO ANALYSES, TWO FDR FAMILIES, BOTH FIXED IN ADVANCE
-------------------------------------------------------
-A — HEADLINE. The adult SHARED map against all five gradients. 5 tests, one BH
-    family. This is the single claim "the shared PSY-SUD alteration pattern is
-    organised along known cortical hierarchies", and the five gradients are
-    five ways of asking it, so they belong in one family.
-
-B — DECOMPOSITION (panel D). Seven COMPONENT maps — SUD mean, adult PSY mean,
-    pediatric PSY mean and the four cluster PSY means — against C1, C2, C3.
-    21 tests, a separate BH family. Component maps, never shared maps: that is
-    what removes the circularity, since each row is then independent of the
-    SUD row by construction.
-
-Cells outside these two grids are NOT tested. Mood/Anxiety x MPC, for example,
-is not a test in this design — it belongs to neither family, and building a
-full 7 x 5 grid would inflate the correction with 14 cells nobody set out to
-ask about.
-
-Analysis A also reports the two COMPONENTS of the adult shared map alongside
-it, descriptively and outside the family. That is not decoration: on C1 the
-adult components run in opposite directions, so a null on the shared map there
-means cancellation, not absence, and the script says so explicitly.
-
-TWO SUBSTANTIVE CHANGES FROM THE REPO SCRIPTS
-----------------------------------------------
-1. THE BRAIN MAP IS PERMUTED, NOT THE GRADIENT. Every previous RQ2 script
-   permuted the gradient. For C1-C3 that is not a defensible null: the AHBA
-   DME scores exist for 34 LEFT-hemisphere parcels only and are MIRRORED onto
-   the right, so r(LH, RH) = 1.000 exactly. BrainSMASH fits a variogram
-   against inter-regional distance, and a mirrored map has homologous parcels
-   far apart in space holding identical values, so the variogram is
-   artificially flat at long range and the surrogates inherit a smoothness the
-   gene-expression data never had. A spin of a mirrored map likewise yields
-   surrogates that are no longer mirrored — maps the AHBA pipeline could not
-   have produced. Permuting the alteration map avoids both, gives every row
-   its own independent null instead of one shared null per gradient, and
-   matches the RQ1 convention. PERMUTED_SIDE = "gradient" reproduces the
-   published numbers.
-
-2. BOTH REPO BUGS INHERITED FIXED. Spins carry the +34 offset (five of the six
-   spin-building RQ2 scripts lacked it) and the generic SUD column is dropped
-   (seven of nine lacked it), because both come from RQ1_common / RQ2_common
-   rather than from local copies.
-
-Just press Run.
 """
 
 import os

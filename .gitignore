@@ -2,3 +2,16 @@
 *.pyc
 ~$*.xlsx
 ~$*.xls
+
+# generated outputs — regenerated from data/raw/ + src/
+ALL_outputs_RQ1/
+ALL_outputs_RQ2/
+figures/
+results/
+*.log
+
+# environments / editor
+.venv/
+venv/
+.ipynb_checkpoints/
+.DS_Store

@@ -1,12 +1,28 @@
-numpy
-pandas
-scipy
-scikit-learn
-statsmodels
-matplotlib
-seaborn
-h5py
-tqdm
-adjustText
-brainsmash
-enigmatoolbox
+# META — PSY-SUD neuroanatomical similarity
+# Python >= 3.10
+#
+# Install:   pip install -r requirements.txt
+#
+# NOT included: enigmatoolbox. It is not on PyPI and is needed only by the
+# surface-rendering scripts (RQ0_all_cohend_maps.py, RQ2_shared_surfaces.py):
+#     git clone https://github.com/MICA-MNI/ENIGMA.git
+#     cd ENIGMA && pip install .
+
+# --- core: needed by every script -------------------------------------------
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+matplotlib>=3.7
+
+# --- I/O ---------------------------------------------------------------------
+openpyxl>=3.1      # .xlsx reading (pandas backend) + RQ1_heatmap.py styling
+h5py>=3.8          # RQ1_common.py: centroids_ctx_68.mat / spins_ctx_10000.mat
+
+# --- spatial nulls -----------------------------------------------------------
+brainsmash>=0.11   # RQ1_common.py: variogram-matched surrogates
+                   # if it errors on import, pin numpy<2 in this file
+
+# --- used by specific scripts only -------------------------------------------
+seaborn>=0.12      # RQ1_heatmap.py, RQ1_joint_matrix_suppl.py
+scikit-learn>=1.3  # RQ2_shared_PCA.py
+statsmodels>=0.14  # RQ3_ageonset_regression.py (OLS, MixedLM), RQ3_comorbidity.py
